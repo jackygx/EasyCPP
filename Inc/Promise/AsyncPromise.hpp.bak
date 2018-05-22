@@ -1,0 +1,238 @@
+/*
+ * Copyright (c) 2018 Guo Xiang
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, version 3.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ * General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#ifndef __ASYNC_PROMISE_HPP__
+#define __ASYNC_PROMISE_HPP__
+
+#include <Function/Function.hpp>
+#include <Interface/Interface.hpp>
+#include <SharedPtr/SharedPtr.hpp>
+#include <Meta/Meta.hpp>
+
+#include "Promisable.hpp"
+#include "SyncPromise.hpp"
+
+DEFINE_INTERFACE(PromiseChain);
+class IPromiseChain
+{
+public:
+	virtual ~IPromiseChain(void) {}
+	virtual void Trigger(void *token) = 0;
+};
+
+/* Last node of the promise Chain.
+ * FnThen:      The Then method.
+ * PromiseType: The type of the promise given by previous node
+ *              when Trigger is called. */
+template <class FnCatch, class PromiseType>
+class CPromiseChainFinal :
+	public IPromiseChain
+{
+public:
+	CPromiseChainFinal(const FnCatch &fnCatch) :
+		mFnCatch(fnCatch)
+	{
+		/* Does nothing */
+	}
+
+	virtual void Trigger(void *token)
+	{
+		PromiseType promise((typename PromiseType::Token *)token);
+		promise->Catch(mFnCatch);
+	}
+
+private:
+	FnCatch mFnCatch;
+};
+
+/* Promise Chain.
+ * PromiseRoot: The root of the promise chain.
+ *              The root provide a way to notify the initializer
+ *              that the promise chain is ready.
+ * FnThen:      Type of the Then method.
+ * PromiseType: The type of the promise given by previous node
+ *              when Trigger is called. */
+template <class PromiseRoot, class FnThen, class PromiseType>
+class CPromiseChain :
+	public IPromiseChain
+{
+public:
+	CPromiseChain(const PromiseRoot &root, const FnThen &fnThen) :
+		mRoot(root),
+		mFnThen(fnThen),
+		mNext(nullptr)
+	{
+		PROMISE_DEBUG("CPromiseChain<%s, %s, %s> is created",
+					  TYPE_NAME(PromiseRoot),
+					  TYPE_NAME(FnThen),
+					  TYPE_NAME(PromiseType));
+	}
+
+	template <class Fn>
+	inline decltype(auto) Then(const Fn &fn)
+	{
+		return _Then<Fn, FN_RET_TYPE(FnThen)>(fn);
+	}
+
+	inline void Catch(void)
+	{
+		mRoot->PromiseReady();
+	}
+
+	template <class Fn>
+	inline void Catch(const Fn &fn)
+	{
+		return _Catch<Fn, FN_RET_TYPE(FnThen)>(fn);
+	}
+
+	/* Trigger is the interface so it need a common type as args.
+	 * So we conver the common type to PromiseType.
+	 * TODO: We need a CSharedPtrContainer instead of using the token */
+	virtual void Trigger(void *token)
+	{
+		PromiseType promise((typename PromiseType::Token *)token);
+
+		PROMISE_DEBUG("CPromiseChain<%s, %s, %s> is triggered",
+					  TYPE_NAME(PromiseRoot),
+					  TYPE_NAME(FnThen),
+					  TYPE_NAME(PromiseType));
+
+		auto ret(promise->Then(mFnThen).ToToken());
+
+		if (mNext) {
+			mNext->Trigger(ret);
+		}
+	}
+
+private:
+	/* If FnThen returns a promisible,
+	 * we have Then method and create the next node. */
+	template <class Fn,
+			 class FnThenRet,
+			 ENABLE_IF(IS_PROMISABLE(FnThenRet))>
+	inline decltype(auto) _Then(const Fn &fn)
+	{
+		typedef CSharedPtr<CPromiseChain<PromiseRoot, Fn, FnThenRet>> CPromisePtr;
+		CPromisePtr next(mRoot, fn);
+		mNext = next;
+		return next;
+	}
+
+	/* If FnThen does not return a promisible,
+	 * we have Catch method and create the last node.
+	 * Then we notify the owner that the promise chain is ready. */
+	template <class Fn,
+			 class FnThenRet,
+			 ENABLE_IF(!IS_PROMISABLE(FnThenRet))>
+	inline void _Catch(const Fn &fn)
+	{
+		typedef CSharedPtr<CPromiseChainFinal<Fn, FnThenRet>> CPromisePtr;
+		CPromisePtr next(fn);
+		mNext = next;
+		mRoot->PromiseReady();
+	}
+
+private:
+	PromiseRoot mRoot;
+	FnThen mFnThen;
+	IPromiseChainPtr mNext;
+};
+
+/* FnReady will be called when the promise chain is ready,
+ * Then the caller can start sending the async data by calling the Triggger. */
+template <class... Tn>
+class CAsyncPromise :
+	public CPromisable,
+	public CEnableSharedPtr<CAsyncPromise<Tn...>>
+{
+	/* CSharedPtr<CAsyncPromise<>> */
+	typedef CSharedPtr<CAsyncPromise<Tn...>> CAsyncPromisePtr;
+	/* Tells next node the Type of the CSyncPromise
+	 * when its Tirgger is called. */
+	typedef CSharedPtr<CSyncPromise<Tn...>> PromiseType;
+	/* Used by Share(). */
+	typedef CEnableSharedPtr<CAsyncPromise<Tn...>> CPromiseShare;
+	/* Called by the last node that the chain is ready */
+	DEFINE_FUNC(PromiseReady, void(const CSharedPtr<CAsyncPromise<Tn...>> &));
+
+private:
+	static void FakePromiseReady(const CSharedPtr<CAsyncPromise<Tn...>> &)
+	{
+
+	}
+
+public:
+	/* Default constructor. A failure promise */
+	inline CAsyncPromise(void) :
+		mFnReady(FakePromiseReady),
+		mNext(nullptr)
+	{
+		throw ES("This should not happen. Maybe support later");
+	}
+
+	/* The mFnReady will be called when then chain is ready.
+	 * The mNext will be inited after Then is called */
+	inline CAsyncPromise(const PromiseReadyFn &fnReady) :
+		mFnReady(fnReady),
+		mNext(nullptr)
+	{
+		if (!fnReady) {
+			throw ES("Input fnready is null");
+		}
+
+		PROMISE_DEBUG("CAsyncPromise succeed");
+	}
+
+	/* Create the next node and save to mNext */
+	template <class Fn>
+	inline decltype(auto) Then(const Fn &fn)
+	{
+		typedef CSharedPtr<CPromiseChain<CAsyncPromisePtr, Fn, PromiseType>> CAsyncPromisePtr;
+
+		CAsyncPromisePtr next(CPromiseShare::Share(), fn);
+		mNext = next;
+		return next;
+	}
+
+	/* After chain is ready, the intializer calls the Trigger
+	 * to send data to the promise chain */
+	inline void Trigger(const Tn & ... tn)
+	{
+		PROMISE_DEBUG("Initializer triggers...");
+		if (!mNext) {
+			throw ES("No Then is called after the promise is returned");
+		}
+
+		mNext->Trigger(PromiseType(tn...).ToToken());
+	}
+
+	/* Called by last node to when the chain is ready */
+	inline void PromiseReady(void)
+	{
+		PROMISE_DEBUG("Notify initializer");
+		mFnReady(CPromiseShare::Share());
+	}
+
+private:
+	PromiseReadyFn mFnReady;
+	IPromiseChainPtr mNext;
+};
+
+#define DEFINE_ASYNC_PROMISE(name, ...) \
+	typedef CSharedPtr<CAsyncPromise<__VA_ARGS__>> C##name##PromisePtr
+
+#endif /* __ASYNC_PROMISE_HPP__ */
+
