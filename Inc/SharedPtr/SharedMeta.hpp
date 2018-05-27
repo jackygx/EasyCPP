@@ -44,6 +44,7 @@ static inline TTar *DynamicCast(TSrc *src)
 	if (nullptr == ret) {
 		SPTR_DEBUG("Fail to dynamic cast from (%s) to (%s)\n",
 				   TYPE_NAME(TSrc), TYPE_NAME(TTar));
+		throw ES("Fail to do dynamic cast");
 	}
 
 	return ret;
