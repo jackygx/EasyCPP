@@ -204,6 +204,7 @@
 HAS_MEMBER_OPS(equal, =);
 HAS_MEMBER_OPS(is_equal, ==);
 HAS_MEMBER_OPS(add_equal, +=);
+HAS_MEMBER_OPS(sub_equal, -=);
 HAS_MEMBER_OPS(add, +);
 HAS_MEMBER_OPS(bigger, >);
 HAS_MEMBER_OPS(smaller, <);
@@ -231,6 +232,7 @@ HAS_MEMBER_OPS(smaller, <);
 HAS_OPS(equal, =);
 HAS_OPS(is_equal, ==);
 HAS_OPS(add_equal, +=);
+HAS_OPS(sub_equal, -=);
 HAS_OPS(add, +);
 HAS_OPS(bigger, >);
 HAS_OPS(smaller, <);

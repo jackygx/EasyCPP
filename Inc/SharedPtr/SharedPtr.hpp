@@ -164,17 +164,77 @@ public: /* operator == */
 			 ENABLE_IF(has_member_operator_is_equal<K, K &&>)>
 	inline bool operator == (T1 &&t1) const;
 
+public: /* operator > */
+	/* T > T1 (overloaded) */
+	template <class T1,
+			 DEBUG_TEMPLATE,
+			 ENABLE_IF(has_member_operator_bigger<T, T1 &&>)>
+	inline bool operator > (T1 &&t1) const;
+
+	/* T > T1 (construct) */
+	template <class T1,
+			 DEBUG_TEMPLATE,
+			 ENABLE_IF(!has_member_operator_bigger<T, T1 &&>),
+			 ENABLE_IF(SPTR_CAN_CONVERT(T, T1 &&)),
+			 class K = T,
+			 ENABLE_IF(has_member_operator_bigger<K, K &&>)>
+	inline bool operator > (T1 &&t1) const;
+
+public: /* operator < */
+	/* T > T1 (overloaded) */
+	template <class T1,
+			 DEBUG_TEMPLATE,
+			 ENABLE_IF(has_member_operator_smaller<T, T1 &&>)>
+	inline bool operator < (T1 &&t1) const;
+
+	/* T > T1 (construct) */
+	template <class T1,
+			 DEBUG_TEMPLATE,
+			 ENABLE_IF(!has_member_operator_smaller<T, T1 &&>),
+			 ENABLE_IF(SPTR_CAN_CONVERT(T, T1 &&)),
+			 class K = T,
+			 ENABLE_IF(has_member_operator_smaller<K, K &&>)>
+	inline bool operator < (T1 &&t1) const;
+
+public: /* operator += */
+	/* CSharedPtr<T> += nullptr_t */
+	inline void operator += (std::nullptr_t) const;
+
+	/* T += T1 (overloaded) */
+	template <class T1,
+			 DEBUG_TEMPLATE,
+			 ENABLE_IF(has_member_operator_add_equal<T, T1 &&>)>
+	inline void operator += (T1 &&t1) const;
+
+	/* T += T1 (construct) */
+	template <class T1,
+			 DEBUG_TEMPLATE,
+			 ENABLE_IF(!has_member_operator_add_equal<T, T1 &&>),
+			 ENABLE_IF(SPTR_CAN_CONVERT(T, T1 &&)),
+			 class K = T,
+			 ENABLE_IF(has_member_operator_add_equal<K, K &&>)>
+	inline void operator += (T1 &&t1) const;
+
+public: /* operator -= */
+	/* CSharedPtr<T> -= nullptr_t */
+	inline void operator -= (std::nullptr_t) const;
+
+	/* T -= T1 (overloaded) */
+	template <class T1,
+			 DEBUG_TEMPLATE,
+			 ENABLE_IF(has_member_operator_sub_equal<T, T1 &&>)>
+	inline void operator -= (T1 &&t1) const;
+
+	/* T -= T1 (construct) */
+	template <class T1,
+			 DEBUG_TEMPLATE,
+			 ENABLE_IF(!has_member_operator_sub_equal<T, T1 &&>),
+			 ENABLE_IF(SPTR_CAN_CONVERT(T, T1 &&)),
+			 class K = T,
+			 ENABLE_IF(has_member_operator_sub_equal<K, K &&>)>
+	inline void operator -= (T1 &&t1) const;
+
 public: /* Other operator */
-	/* operator += object (overload) */
-	template <class T1,
-			 ENABLE_IF(has_member_operator_add_equal<T, const T1 &>)>
-	inline void operator += (const T1 &t1);
-
-	/* operator += CSharedPtr (overload) */
-	template <class T1,
-			 ENABLE_IF(has_member_operator_add_equal<T, const T1 &>)>
-	inline void operator += (const CSharedPtr<T1> &t1);
-
 	/* operator [] */
 	template <class T1>
 	inline decltype(auto) operator [](T1 p) const;
@@ -208,16 +268,6 @@ public:
 
 	/* operator * */
 	inline T &operator * (void) const;
-
-	/* operator > */
-	template <class T1,
-			 ENABLE_IF(has_member_operator_bigger<T, const T1 &>)>
-	inline bool operator > (const CSharedPtr<T1> &t1) const;
-
-	/* operator < */
-	template <class T1,
-			 ENABLE_IF(has_member_operator_smaller<T, const T1 &>)>
-	inline bool operator < (const CSharedPtr<T1> &t1) const;
 
 public: /* Others */
 	/* Release this shared pointer */
@@ -752,42 +802,208 @@ inline bool CSharedPtr<T>::operator == (T1 &&t1) const
 	return ret;
 }
 
+/* T > T1 (overloaded) */
 template <class T>
 template <class T1,
-		 DECLARE_ENABLE_IF(has_member_operator_add_equal<T, const T1 &>)>
-inline void CSharedPtr<T>::operator += (const T1 &t1)
+		 DECLARE_DEBUG_TEMPLATE,
+		 DECLARE_ENABLE_IF(has_member_operator_bigger<T, T1 &&>)>
+inline bool CSharedPtr<T>::operator > (T1 &&t1) const
 {
-	SPTR_DEBUG("++[CSharedPtr<%s>(%p)]: += CSharedPtr<>(%s)",
-			   TYPE_NAME(T), this, TYPE_NAME(T1));
+	bool ret;
+
+	SPTR_DEBUG("++[CSharedPtr<%s>(%p)] > [%s(%p)]",
+			   TYPE_NAME(T), this, TYPE_NAME(T1), &t1);
 
 	if (nullptr != mBase) {
-		(*(mBase->mPtr)) += t1;
+		ret = (mBase->mPtr->operator > (std::forward<decltype(t1)>(t1)));
 	} else {
-		throw ES("Illegal NULL += xxx");
+		throw ES("Nullptr for operator >");
 	}
 
-	SPTR_DEBUG("--[CSharedPtr<%s>(%p)]: += CSharedPtr<>(%s)",
-			   TYPE_NAME(T), this, TYPE_NAME(T1));
+	SPTR_DEBUG("--[CSharedPtr<%s>(%p)] > [%s(%p)], result: %d",
+			   TYPE_NAME(T), this, TYPE_NAME(T1), &t1, ret);
+
+	return ret;
 }
 
+/* T > T1 (construct) */
 template <class T>
 template <class T1,
-		 DECLARE_ENABLE_IF(has_member_operator_add_equal<T, const T1 &>)>
-inline void CSharedPtr<T>::operator += (const CSharedPtr<T1> &t1)
+		 DECLARE_DEBUG_TEMPLATE,
+		 DECLARE_ENABLE_IF(!has_member_operator_bigger<T, T1 &&>),
+		 DECLARE_ENABLE_IF(SPTR_CAN_CONVERT(T, T1 &&)),
+		 class K,
+		 DECLARE_ENABLE_IF(has_member_operator_bigger<K, K &&>)>
+inline bool CSharedPtr<T>::operator > (T1 &&t1) const
 {
-	SPTR_DEBUG("++[CSharedPtr<%s>(%p)]: += CSharedPtr<%s>",
-			   TYPE_NAME(T), this, TYPE_NAME(T1));
+	bool ret;
 
-	if (nullptr == mBase) {
-		throw ES("Illegal NULL += xxx");
+	SPTR_DEBUG("++[CSharedPtr<%s>(%p)] > [%s(%p)]",
+			   TYPE_NAME(T), this, TYPE_NAME(T1), &t1);
+
+	if (nullptr != mBase) {
+		ret = (mBase->mPtr->operator > (
+				*(CSharedPtr<T>(std::forward<decltype(t1)>(t1)))));
 	} else {
-		if (t1) {
-			(*(mBase->mPtr)) += (*t1);
-		}
+		throw ES("Nullptr for operator >");
 	}
 
-	SPTR_DEBUG("--[CSharedPtr<%s>(%p)]: += CSharedPtr<%s>",
-			   TYPE_NAME(T), this, TYPE_NAME(T1));
+	SPTR_DEBUG("--[CSharedPtr<%s>(%p)] > [%s(%p)], result: %d",
+			   TYPE_NAME(T), this, TYPE_NAME(T1), &t1, ret);
+
+	return ret;
+}
+
+/* T < T1 (overloaded) */
+template <class T>
+template <class T1,
+		 DECLARE_DEBUG_TEMPLATE,
+		 DECLARE_ENABLE_IF(has_member_operator_smaller<T, T1 &&>)>
+inline bool CSharedPtr<T>::operator < (T1 &&t1) const
+{
+	bool ret;
+
+	SPTR_DEBUG("++[CSharedPtr<%s>(%p)] < [%s(%p)]",
+			   TYPE_NAME(T), this, TYPE_NAME(T1), &t1);
+
+	if (nullptr != mBase) {
+		ret = (mBase->mPtr->operator < (std::forward<decltype(t1)>(t1)));
+	} else {
+		throw ES("Nullptr for operator <");
+	}
+
+	SPTR_DEBUG("--[CSharedPtr<%s>(%p)] < [%s(%p)], result: %d",
+			   TYPE_NAME(T), this, TYPE_NAME(T1), &t1, ret);
+
+	return ret;
+}
+
+/* T > T1 (construct) */
+template <class T>
+template <class T1,
+		 DECLARE_DEBUG_TEMPLATE,
+		 DECLARE_ENABLE_IF(!has_member_operator_smaller<T, T1 &&>),
+		 DECLARE_ENABLE_IF(SPTR_CAN_CONVERT(T, T1 &&)),
+		 class K,
+		 DECLARE_ENABLE_IF(has_member_operator_smaller<K, K &&>)>
+inline bool CSharedPtr<T>::operator < (T1 &&t1) const
+{
+	bool ret;
+
+	SPTR_DEBUG("++[CSharedPtr<%s>(%p)] < [%s(%p)]",
+			   TYPE_NAME(T), this, TYPE_NAME(T1), &t1);
+
+	if (nullptr != mBase) {
+		ret = (mBase->mPtr->operator < (
+				*(CSharedPtr<T>(std::forward<decltype(t1)>(t1)))));
+	} else {
+		throw ES("Nullptr for operator <");
+	}
+
+	SPTR_DEBUG("--[CSharedPtr<%s>(%p)] < [%s(%p)], result: %d",
+			   TYPE_NAME(T), this, TYPE_NAME(T1), &t1, ret);
+
+	return ret;
+}
+
+/* CSharedPtr<T> += nullptr_t */
+template <class T>
+inline void CSharedPtr<T>::operator += (std::nullptr_t) const
+{
+	SPTR_DEBUG("++[CSharedPtr<%s>(%p)] += [nullptr_t]", TYPE_NAME(T), this);
+}
+
+/* T += T1 (overloaded) */
+template <class T>
+template <class T1,
+		 DECLARE_DEBUG_TEMPLATE,
+		 DECLARE_ENABLE_IF(has_member_operator_add_equal<T, T1 &&>)>
+inline void CSharedPtr<T>::operator += (T1 &&t1) const
+{
+	SPTR_DEBUG("++[CSharedPtr<%s>(%p)] == [%s(%p)]",
+			   TYPE_NAME(T), this, TYPE_NAME(T1), &t1);
+
+	if (nullptr != mBase) {
+		(mBase->mPtr->operator += (std::forward<decltype(t1)>(t1)));
+	} else {
+		throw ES("Nullptr for operator +=");
+	}
+
+	SPTR_DEBUG("==[CSharedPtr<%s>(%p)] += [%s(%p)]",
+			   TYPE_NAME(T), this, TYPE_NAME(T1), &t1);
+}
+
+/* T += T1 (construct) */
+template <class T>
+template <class T1,
+		 DECLARE_DEBUG_TEMPLATE,
+		 DECLARE_ENABLE_IF(!has_member_operator_add_equal<T, T1 &&>),
+		 DECLARE_ENABLE_IF(SPTR_CAN_CONVERT(T, T1 &&)),
+		 class K,
+		 DECLARE_ENABLE_IF(has_member_operator_add_equal<K, K &&>)>
+inline void CSharedPtr<T>::operator += (T1 &&t1) const
+{
+	SPTR_DEBUG("++[CSharedPtr<%s>(%p)] += [%s(%p)]",
+			   TYPE_NAME(T), this, TYPE_NAME(T1), &t1);
+
+	if (nullptr != mBase) {
+		(mBase->mPtr->operator += (*(CSharedPtr<T>(std::forward<decltype(t1)>(t1)))));
+	} else {
+		throw ES("Nullptr for operator +=");
+	}
+
+	SPTR_DEBUG("--[CSharedPtr<%s>(%p)] += [%s(%p)]",
+			   TYPE_NAME(T), this, TYPE_NAME(T1), &t1);
+}
+
+/* CSharedPtr<T> -= nullptr_t */
+template <class T>
+inline void CSharedPtr<T>::operator -= (std::nullptr_t) const
+{
+	SPTR_DEBUG("++[CSharedPtr<%s>(%p)] -= [nullptr_t]", TYPE_NAME(T), this);
+}
+
+/* T -= T1 (overloaded) */
+template <class T>
+template <class T1,
+		 DECLARE_DEBUG_TEMPLATE,
+		 DECLARE_ENABLE_IF(has_member_operator_sub_equal<T, T1 &&>)>
+inline void CSharedPtr<T>::operator -= (T1 &&t1) const
+{
+	SPTR_DEBUG("++[CSharedPtr<%s>(%p)] == [%s(%p)]",
+			   TYPE_NAME(T), this, TYPE_NAME(T1), &t1);
+
+	if (nullptr != mBase) {
+		(mBase->mPtr->operator -= (std::forward<decltype(t1)>(t1)));
+	} else {
+		throw ES("Nullptr for operator -=");
+	}
+
+	SPTR_DEBUG("==[CSharedPtr<%s>(%p)] -= [%s(%p)]",
+			   TYPE_NAME(T), this, TYPE_NAME(T1), &t1);
+}
+
+/* T -= T1 (construct) */
+template <class T>
+template <class T1,
+		 DECLARE_DEBUG_TEMPLATE,
+		 DECLARE_ENABLE_IF(!has_member_operator_sub_equal<T, T1 &&>),
+		 DECLARE_ENABLE_IF(SPTR_CAN_CONVERT(T, T1 &&)),
+		 class K,
+		 DECLARE_ENABLE_IF(has_member_operator_sub_equal<K, K &&>)>
+inline void CSharedPtr<T>::operator -= (T1 &&t1) const
+{
+	SPTR_DEBUG("++[CSharedPtr<%s>(%p)] -= [%s(%p)]",
+			   TYPE_NAME(T), this, TYPE_NAME(T1), &t1);
+
+	if (nullptr != mBase) {
+		(mBase->mPtr->operator -= (*(CSharedPtr<T>(std::forward<decltype(t1)>(t1)))));
+	} else {
+		throw ES("Nullptr for operator -=");
+	}
+
+	SPTR_DEBUG("--[CSharedPtr<%s>(%p)] -= [%s(%p)]",
+			   TYPE_NAME(T), this, TYPE_NAME(T1), &t1);
 }
 
 template <class T>
@@ -863,43 +1079,6 @@ inline T &CSharedPtr<T>::operator * (void) const
 	}
 
 	return *(mBase->mPtr);
-}
-
-template <class T>
-template <class T1,
-		 DECLARE_ENABLE_IF(has_member_operator_bigger<T, const T1 &>)>
-inline bool CSharedPtr<T>::operator > (const CSharedPtr<T1> &t1) const
-{
-	if (nullptr == mBase) {
-		/* null vs any */
-		return false;
-	} else {
-		return t1 ?
-			/* not-null vs not-null */
-			mBase->mPtr->operator > (*t1) :
-			/* not-null vs null */
-			true;
-	}
-}
-
-template <class T>
-template <class T1,
-		 DECLARE_ENABLE_IF(has_member_operator_smaller<T, const T1 &>)>
-inline bool CSharedPtr<T>::operator < (const CSharedPtr<T1> &t1) const
-{
-	if (nullptr == mBase) {
-		return t1 ?
-			/* null vs not-null */
-			true :
-			/* null vs null */
-			false;
-	} else {
-		return t1 ?
-			/* not-null vs not-null */
-			mBase->mPtr->operator < (*t1) :
-			/* not-null vs null */
-			false;
-	}
 }
 
 template <class T>

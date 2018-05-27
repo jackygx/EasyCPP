@@ -19,7 +19,7 @@
 
 template <class T1, class T2,
 		 ENABLE_IF(!has_member_operator_is_equal<T1 &&, T2 &&>),
-		 ENABLE_IF(has_member_operator_is_equal<T2 &&, const T1 &&>)>
+		 ENABLE_IF(has_member_operator_is_equal<T2 &&, T1 &&>)>
 inline bool operator == (T1 &&t1, T2 &&t2)
 {
 	bool ret;
@@ -48,6 +48,182 @@ inline bool operator != (T1 &&t1, T2 &&t2)
 	ret = !(t1 == std::forward<decltype(t2)>(t2));
 
 	SPTR_DEBUG("--[<%s>(%p)] != [<%s>(%p)], result: %d",
+			   TYPE_NAME(T1), &t1, TYPE_NAME(T2), &t2, ret);
+
+	return ret;
+}
+
+/* A > B => B < A */
+template <class T1, class T2,
+		 ENABLE_IF(!has_member_operator_bigger<T1 &&, T2 &&>),
+		 ENABLE_IF(has_member_operator_smaller<T2 &&, T1 &&>)>
+inline bool operator > (T1 &&t1, T2 &&t2)
+{
+	bool ret;
+
+	SPTR_DEBUG("++[<%s>(%p)] > [<%s>(%p)] => [<%s>] < [<%s>]",
+			   TYPE_NAME(T1), &t1, TYPE_NAME(T2), &t2,
+			   TYPE_NAME(T2), TYPE_NAME(T1));
+
+	ret = (t2.operator < (std::forward<decltype(t1)>(t1)));
+
+	SPTR_DEBUG("--[<%s>(%p)] > [<%s>(%p)] => [<%s>] < [<%s>], result: %d",
+			   TYPE_NAME(T1), &t1, TYPE_NAME(T2), &t2,
+			   TYPE_NAME(T2), TYPE_NAME(T1), ret);
+
+	return ret;
+}
+
+/* A > B => !(A <= B) */
+template <class T1, class T2,
+		 ENABLE_IF(!has_member_operator_bigger<T1 &&, T2 &&>),
+		 ENABLE_IF(!has_member_operator_smaller<T2 &&, T1 &&>),
+		 ENABLE_IF(has_member_operator_smaller<T1 &&, T2 &&>),
+		 ENABLE_IF(has_member_operator_equal<T1 &&, T2 &&>)>
+inline bool operator > (T1 &&t1, T2 &&t2)
+{
+	bool ret;
+
+	SPTR_DEBUG("++[<%s>(%p)] > [<%s>(%p)] => !([<%s>] <= [<%s>])",
+			   TYPE_NAME(T1), &t1, TYPE_NAME(T2), &t2,
+			   TYPE_NAME(T1), TYPE_NAME(T2));
+
+	ret = !((t1.operator < (std::forward<decltype(t2)>(t2))) ||
+			(t1.operator == (std::forward<decltype(t2)>(t2))));
+
+	SPTR_DEBUG("++[<%s>(%p)] > [<%s>(%p)] => !([<%s>] <= [<%s>]), result: %d",
+			   TYPE_NAME(T1), &t1, TYPE_NAME(T2), &t2,
+			   TYPE_NAME(T1), TYPE_NAME(T2), ret);
+
+	return ret;
+}
+
+/* A > B => !(B >= A) */
+template <class T1, class T2,
+		 ENABLE_IF(!has_member_operator_bigger<T1 &&, T2 &&>),
+		 ENABLE_IF(!has_member_operator_smaller<T2 &&, T1 &&>),
+		 ENABLE_IF(!has_member_operator_smaller<T1 &&, T2 &&>),
+		 ENABLE_IF(!has_member_operator_equal<T1 &&, T2 &&>),
+		 ENABLE_IF(has_member_operator_bigger<T2 &&, T1 &&>),
+		 ENABLE_IF(has_member_operator_equal<T2 &&, T1 &&>)>
+inline bool operator > (T1 &&t1, T2 &&t2)
+{
+	bool ret;
+
+	SPTR_DEBUG("++[<%s>(%p)] > [<%s>(%p)] => !([<%s>] >= [<%s>])",
+			   TYPE_NAME(T1), &t1, TYPE_NAME(T2), &t2,
+			   TYPE_NAME(T2), TYPE_NAME(T1));
+
+	ret = !((t2.operator > (std::forward<decltype(t1)>(t1))) ||
+			(t2.operator == (std::forward<decltype(t1)>(t1))));
+
+	SPTR_DEBUG("++[<%s>(%p)] > [<%s>(%p)] => !([<%s>] >= [<%s>]), result: %d",
+			   TYPE_NAME(T1), &t1, TYPE_NAME(T2), &t2,
+			   TYPE_NAME(T2), TYPE_NAME(T1), ret);
+
+	return ret;
+}
+
+/* A < B => B > A */
+template <class T1, class T2,
+		 ENABLE_IF(!has_member_operator_smaller<T1 &&, T2 &&>),
+		 ENABLE_IF(has_member_operator_bigger<T2 &&, T1 &&>)>
+inline bool operator < (T1 &&t1, T2 &&t2)
+{
+	bool ret;
+
+	SPTR_DEBUG("++[<%s>(%p)] < [<%s>(%p)] => [<%s>] > [<%s>]",
+			   TYPE_NAME(T1), &t1, TYPE_NAME(T2), &t2,
+			   TYPE_NAME(T2), TYPE_NAME(T1));
+
+	ret = (t2.operator > (std::forward<decltype(t1)>(t1)));
+
+	SPTR_DEBUG("++[<%s>(%p)] < [<%s>(%p)] => [<%s>] > [<%s>], result: %d",
+			   TYPE_NAME(T1), &t1, TYPE_NAME(T2), &t2,
+			   TYPE_NAME(T2), TYPE_NAME(T1), ret);
+
+	return ret;
+}
+
+/* A < B => !(A >= B) */
+template <class T1, class T2,
+		 ENABLE_IF(!has_member_operator_smaller<T1 &&, T2 &&>),
+		 ENABLE_IF(!has_member_operator_bigger<T2 &&, T1 &&>),
+		 ENABLE_IF(has_member_operator_bigger<T1 &&, T2 &&>),
+		 ENABLE_IF(has_member_operator_equal<T1 &&, T2 &&>)>
+inline bool operator < (T1 &&t1, T2 &&t2)
+{
+	bool ret;
+
+	SPTR_DEBUG("++[<%s>(%p)] < [<%s>(%p)] => !([<%s>] >= [<%s>])",
+			   TYPE_NAME(T1), &t1, TYPE_NAME(T2), &t2,
+			   TYPE_NAME(T1), TYPE_NAME(T2));
+
+	ret = !((t1.operator > (std::forward<decltype(t2)>(t2))) ||
+			(t1.operator == (std::forward<decltype(t2)>(t2))));
+
+	SPTR_DEBUG("++[<%s>(%p)] < [<%s>(%p)] => !([<%s>] >= [<%s>]), result: %d",
+			   TYPE_NAME(T1), &t1, TYPE_NAME(T2), &t2,
+			   TYPE_NAME(T1), TYPE_NAME(T2), ret);
+
+	return ret;
+}
+
+/* A < B => !(B <= A) */
+template <class T1, class T2,
+		 ENABLE_IF(!has_member_operator_smaller<T1 &&, T2 &&>),
+		 ENABLE_IF(!has_member_operator_bigger<T2 &&, T1 &&>),
+		 ENABLE_IF(!has_member_operator_bigger<T1 &&, T2 &&>),
+		 ENABLE_IF(!has_member_operator_equal<T1 &&, T2 &&>),
+		 ENABLE_IF(has_member_operator_smaller<T2 &&, T1 &&>),
+		 ENABLE_IF(has_member_operator_equal<T2 &&, T1 &&>)>
+inline bool operator < (T1 &&t1, T2 &&t2)
+{
+	bool ret;
+
+	SPTR_DEBUG("++[<%s>(%p)] < [<%s>(%p)] => !([<%s>] <= [<%s>])",
+			   TYPE_NAME(T1), &t1, TYPE_NAME(T2), &t2,
+			   TYPE_NAME(T2), TYPE_NAME(T1));
+
+	ret = !((t2.operator < (std::forward<decltype(t1)>(t1))) ||
+			(t2.operator == (std::forward<decltype(t1)>(t1))));
+
+	SPTR_DEBUG("++[<%s>(%p)] < [<%s>(%p)] => !([<%s>] <= [<%s>]), result: %d",
+			   TYPE_NAME(T1), &t1, TYPE_NAME(T2), &t2,
+			   TYPE_NAME(T2), TYPE_NAME(T1), ret);
+
+	return ret;
+}
+
+template <class T1, class T2>
+inline bool operator >= (T1 &&t1, T2 &&t2)
+{
+	bool ret;
+
+	SPTR_DEBUG("++[<%s>(%p)] >= [<%s>(%p)]",
+			   TYPE_NAME(T1), &t1, TYPE_NAME(T2), &t2);
+
+	ret = (t1 > std::forward<decltype(t2)>(t2)) ||
+		  (t1 == std::forward<decltype(t2)>(t2));
+
+	SPTR_DEBUG("--[<%s>(%p)] >= [<%s>(%p)], result: %d",
+			   TYPE_NAME(T1), &t1, TYPE_NAME(T2), &t2, ret);
+
+	return ret;
+}
+
+template <class T1, class T2>
+inline bool operator <= (T1 &&t1, T2 &&t2)
+{
+	bool ret;
+
+	SPTR_DEBUG("++[<%s>(%p)] <= [<%s>(%p)]",
+			   TYPE_NAME(T1), &t1, TYPE_NAME(T2), &t2);
+
+	ret = (t1 < std::forward<decltype(t2)>(t2)) ||
+		  (t1 == std::forward<decltype(t2)>(t2));
+
+	SPTR_DEBUG("--[<%s>(%p)] <= [<%s>(%p)], result: %d",
 			   TYPE_NAME(T1), &t1, TYPE_NAME(T2), &t2, ret);
 
 	return ret;
