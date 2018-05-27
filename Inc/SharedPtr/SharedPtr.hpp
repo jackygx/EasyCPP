@@ -687,9 +687,14 @@ inline CSharedPtr<T> &CSharedPtr<T>::operator = (T1 &&t1)
 template <class T>
 inline bool CSharedPtr<T>::operator == (std::nullptr_t) const
 {
-	bool ret = (nullptr == mBase);
+	bool ret;
 
-	SPTR_DEBUG("[CSharedPtr<%s>(%p)] == [nullptr_t], result: %d",
+	SPTR_DEBUG("++[CSharedPtr<%s>(%p)] == [nullptr_t]",
+			   TYPE_NAME(T), this);
+
+	ret = (nullptr == mBase);
+
+	SPTR_DEBUG("--[CSharedPtr<%s>(%p)] == [nullptr_t], result: %d",
 			   TYPE_NAME(T), this, ret);
 
 	return ret;
@@ -704,13 +709,16 @@ inline bool CSharedPtr<T>::operator == (T1 &&t1) const
 {
 	bool ret;
 
+	SPTR_DEBUG("++[CSharedPtr<%s>(%p)] == [%s(%p)]",
+			   TYPE_NAME(T), this, TYPE_NAME(T1), &t1);
+
 	if (nullptr != mBase) {
 		ret = (mBase->mPtr->operator == (std::forward<decltype(t1)>(t1)));
 	} else {
 		ret = false;
 	}
 
-	SPTR_DEBUG("[CSharedPtr<%s>(%p)] == [%s(%p)], result: %d",
+	SPTR_DEBUG("--[CSharedPtr<%s>(%p)] == [%s(%p)], result: %d",
 			   TYPE_NAME(T), this, TYPE_NAME(T1), &t1, ret);
 
 	return ret;
@@ -728,14 +736,17 @@ inline bool CSharedPtr<T>::operator == (T1 &&t1) const
 {
 	bool ret;
 
+	SPTR_DEBUG("++[CSharedPtr<%s>(%p)] == [%s(%p)]",
+			   TYPE_NAME(T), this, TYPE_NAME(T1), &t1);
+
 	if (nullptr != mBase) {
 		ret = (mBase->mPtr->operator == (
-				CSharedPtr<T>(std::forward<decltype(t1)>(t1))));
+				*(CSharedPtr<T>(std::forward<decltype(t1)>(t1)))));
 	} else {
 		ret = false;
 	}
 
-	SPTR_DEBUG("[CSharedPtr<%s>(%p)] == [%s(%p)], result: %d",
+	SPTR_DEBUG("--[CSharedPtr<%s>(%p)] == [%s(%p)], result: %d",
 			   TYPE_NAME(T), this, TYPE_NAME(T1), &t1, ret);
 
 	return ret;

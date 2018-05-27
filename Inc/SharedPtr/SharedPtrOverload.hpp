@@ -17,70 +17,40 @@
 #ifndef __SHARED_PTR_OVERLOAD_HPP__
 #define __SHARED_PTR_OVERLOAD_HPP__
 
-/* =====================================================================
- *							operator ==
- * ===================================================================== */
 template <class T1, class T2,
-		 ENABLE_IF(!has_member_operator_is_equal<T1, T2>),
-		 ENABLE_IF(has_member_operator_is_equal<T2, T1>)>
-inline bool operator == (const T1 &t1, const T2 &t2)
+		 ENABLE_IF(!has_member_operator_is_equal<T1 &&, T2 &&>),
+		 ENABLE_IF(has_member_operator_is_equal<T2 &&, const T1 &&>)>
+inline bool operator == (T1 &&t1, T2 &&t2)
 {
-	SPTR_DEBUG("[<%s>(%p)] == [<%s>(%p)] => [<%s>] == [<%s>]",
+	bool ret;
+
+	SPTR_DEBUG("++[<%s>(%p)] == [<%s>(%p)] => [<%s>] == [<%s>]",
 			   TYPE_NAME(T1), &t1, TYPE_NAME(T2), &t2,
 			   TYPE_NAME(T2), TYPE_NAME(T1));
 
-	return t2.operator == (t1);
-}
+	ret = (t2.operator == (std::forward<decltype(t1)>(t1)));
 
-template <class T1, class T2,
-		 ENABLE_IF(!has_member_operator_is_equal<T1, T2>),
-		 ENABLE_IF(!has_member_operator_is_equal<T2, T1>),
-		 ENABLE_IF(has_constructor<T1, T2>)>
-inline bool operator == (const T1 &t1, const T2 &t2)
-{
-	SPTR_DEBUG("[<%s>(%p)] == [<%s>(%p)] => [<%s>] == [<%s>(%s)]",
+	SPTR_DEBUG("--[<%s>(%p)] == [<%s>(%p)] => [<%s>] == [<%s>], result: %d",
 			   TYPE_NAME(T1), &t1, TYPE_NAME(T2), &t2,
-			   TYPE_NAME(T1), TYPE_NAME(T1), TYPE_NAME(T2));
+			   TYPE_NAME(T2), TYPE_NAME(T1), ret);
 
-	return t1 == CSharedPtr<T1>(t2);
+	return ret;
 }
 
-template <class T1, class T2,
-		 ENABLE_IF(!has_member_operator_is_equal<T1, T2>),
-		 ENABLE_IF(!has_member_operator_is_equal<T2, T1>),
-		 ENABLE_IF(!has_constructor<T1, T2>),
-		 ENABLE_IF(has_constructor<T2, T1>)>
-inline bool operator == (const T1 &t1, const T2 &t2)
+template <class T1, class T2>
+inline bool operator != (T1 &&t1, T2 &&t2)
 {
-	SPTR_DEBUG("[<%s>(%p)] == [<%s>(%p)] => [<%s>](%s) == [<%s>]",
-			   TYPE_NAME(T1), &t1, TYPE_NAME(T2), &t2,
-			   TYPE_NAME(T2), TYPE_NAME(T1), TYPE_NAME(T2));
+	bool ret;
 
-	return t1 == CSharedPtr<T1>(t2);
-}
-
-/* =====================================================================
- *							operator !=
- * ===================================================================== */
-template <class T1, class T2,
-		 ENABLE_IF(has_operator_is_equal<T1, T2>)>
-inline bool operator != (const T1 &t1, const T2 &t2)
-{
-	SPTR_DEBUG("[<%s>(%p)] != [<%s>(%p)]",
+	SPTR_DEBUG("++[<%s>(%p)] != [<%s>(%p)]",
 			   TYPE_NAME(T1), &t1, TYPE_NAME(T2), &t2);
 
-	return !(t1 == t2);
-}
+	ret = !(t1 == std::forward<decltype(t2)>(t2));
 
-template <class T1, class T2,
-		 ENABLE_IF(!has_operator_is_equal<T1, T2>),
-		 ENABLE_IF(has_operator_is_equal<T2, T1>)>
-inline bool operator != (const T1 &t1, const T2 &t2)
-{
-	SPTR_DEBUG("[<%s>(%p)] != [<%s>(%p)]",
-			   TYPE_NAME(T2), &t2, TYPE_NAME(T1), &t1);
+	SPTR_DEBUG("--[<%s>(%p)] != [<%s>(%p)], result: %d",
+			   TYPE_NAME(T1), &t1, TYPE_NAME(T2), &t2, ret);
 
-	return !(t2 == t1);
+	return ret;
 }
 
 #endif /* __SHARED_PTR_OVERLOAD_HPP__ */
