@@ -14,14 +14,13 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __COMMON_HPP__
-#define __COMMON_HPP__
+#ifndef __ENUM_HPP__
+#define __ENUM_HPP__
 
-#include "Color.hpp"
-#include "Macro.hpp"
-#include "Typedef.hpp"
-#include "PointerWrapper.hpp"
-#include "Enum.hpp"
+enum OpsEnum {
+	COPY,
+	MOVE,
+};
 
-#endif /* __COMMON_HPP__ */
+#endif /* __ENUM_HPP__ */
 
