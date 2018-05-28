@@ -17,14 +17,10 @@
 #ifndef __SHARED_PTR_HPP__
 #define __SHARED_PTR_HPP__
 
-#include <typeinfo>
-#include <Pool/PoolBase.hpp>
-#include <ExceptionSimple.hpp>
-
 #include "SharedBase.hpp"
 #include "WeakPtr.hpp"
 #include "EnableSharedPtr.hpp"
-#include "SharedMeta.hpp"
+#include "SharedToken.hpp"
 
 template <class T>
 class CSharedPtr
@@ -84,34 +80,13 @@ public: /* Constructor and Destructor */
 	/* Destructor */
 	inline ~CSharedPtr(void);
 
-public: /* Token */
-	/* Token is a pointer that can be used by C API
-	 * as the pdata of a callback.
-	 * When the CSharedPtr<T> is converted into a token,
-	 * its reference will be added by 1.
-	 * In the callback function, the token can be
-	 * converted back to the CSharedPtr<T> by:
-	 * CSharedPtr<T> ptr((CSharedPtr<T>::Token *)token);
-	 */
-	class Token {
-	public:
-		inline void Release(void);
+public:
+	/* Token: See CSharedToken.hpp for more information. */
+	/* Constructor from CSharedToken<T>. */
+	inline CSharedPtr(CSharedToken<T> *token, TokenOps ops = MOVE);
 
-	private:
-		/* A pure virtual function is used to prevent
-		 * an instance of the Token is created. */
-		virtual void NoInst(void) = 0;
-	};
-
-	/* Constructor from token.
-	 * If bCopy == false(default), the reference will NOT be added.
-	 *   so the token CANNOT be used to construct multiple times.
-	 * If bCopy == true, The reference will be added.
-	 *   so the token can be used to construct multiple times.
-	 */
-	inline CSharedPtr(Token *token, bool bCopy = false);
-
-	inline Token *ToToken(void);
+	/* Convert to CSharedToken<T> */
+	inline CSharedToken<T> *ToToken(void);
 
 public: /* operator = */
 	/* operator = nullptr */
@@ -572,49 +547,41 @@ inline CSharedPtr<T>::~CSharedPtr(void)
 			   TYPE_NAME(T), this, mBase);
 }
 
+/* Constructor from token. */
 template <class T>
-inline CSharedPtr<T>::CSharedPtr(Token *token, bool bCopy) :
+inline CSharedPtr<T>::CSharedPtr(CSharedToken<T> *token, TokenOps ops) :
 	mBase(nullptr)
 {
 	SPTR_DEBUG("++[CSharedPtr<%s>(%p)]: %s construct from (Token *)%p",
-			   TYPE_NAME(T), this, bCopy ? "copy" : "move", token);
+			   TYPE_NAME(T), this, COPY == ops ? "copy" : "move", token);
 
-	if (nullptr == token) {
+	if (nullptr == token || !token->mPtr) {
 		throw ES("A NULL token is used to construct");
 	}
 
-	mBase = (CSharedBase<T> *)token;
-
-	if (bCopy) {
-		mBase->AddRef();
+	if (COPY == ops) {
+		operator = (token->mPtr);
+	} else {
+		operator = (std::move(token->mPtr));
 	}
 
-	SetShared();
-
 	SPTR_DEBUG("--[CSharedPtr<%s>(%p)]: %s construct from (Token *)%p",
-			   TYPE_NAME(T), this, bCopy ? "copy" : "move", token);
+			   TYPE_NAME(T), this, COPY == ops ? "copy" : "move", token);
 }
 
+/* Convert to CSharedToken<T> */
 template <class T>
-inline void CSharedPtr<T>::Token::Release(void)
-{
-	SPTR_DEBUG("++[CSharedPtr<%s>(%p)]: token release", TYPE_NAME(T), this);
-
-	((CSharedBase<T> *)(this))->ReleaseRef();
-
-	SPTR_DEBUG("--[CSharedPtr<%s>(%p)]: token release", TYPE_NAME(T), this);
-}
-
-template <class T>
-inline typename CSharedPtr<T>::Token *CSharedPtr<T>::ToToken(void)
+inline CSharedToken<T> *CSharedPtr<T>::ToToken(void)
 {
 	SPTR_DEBUG("++[CSharedPtr<%s>(%p)]: to token", TYPE_NAME(T), this);
 
-	mBase->AddRef();
+	char *buf = CSharedToken<T>::Pool::Alloc();
+	CSharedToken<T> *token = new (buf) CSharedToken<T>(mBase);
 
-	SPTR_DEBUG("--[CSharedPtr<%s>(%p)]: to token", TYPE_NAME(T), this);
+	SPTR_DEBUG("--[CSharedPtr<%s>(%p)]: to token, result: %p",
+			   TYPE_NAME(T), this, token);
 
-	return (Token *)mBase;
+	return token;
 }
 
 /* operator = nullptr */
@@ -1335,6 +1302,7 @@ inline void CSharedPtr<T>::ImSharedPtr(void)
 	throw ES("ImSharedPtr should not be called");
 }
 
+#include "SharedToken.hpp"
 #include "SharedPtrOverload.hpp"
 
 #endif /* __SHARED_PTR_HPP__ */
