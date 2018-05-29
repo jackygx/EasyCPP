@@ -156,13 +156,13 @@ public: /* operator > */
 	inline bool operator > (T1 &&t1) const;
 
 public: /* operator < */
-	/* T > T1 (overloaded) */
+	/* T < T1 (overloaded) */
 	template <class T1,
 			 DEBUG_TEMPLATE,
 			 ENABLE_IF(has_member_operator_smaller<T, T1 &&>)>
 	inline bool operator < (T1 &&t1) const;
 
-	/* T > T1 (construct) */
+	/* T < T1 (construct) */
 	template <class T1,
 			 DEBUG_TEMPLATE,
 			 ENABLE_IF(!has_member_operator_smaller<T, T1 &&>),
@@ -211,8 +211,10 @@ public: /* operator -= */
 
 public: /* Other operator */
 	/* operator [] */
-	template <class T1>
-	inline decltype(auto) operator [](T1 p) const;
+	template <class T1,
+			 DEBUG_TEMPLATE,
+			 ENABLE_IF(has_member_operator_square_brackets<T, T1 &&>)>
+	inline decltype(auto) operator [](T1 &&t1) const;
 
 	/* bool is treated as int/uint32_t in C++
 	 * Implement this will provide a way that
@@ -230,12 +232,12 @@ public:
 
 	/* operator function */
 	template <class... Tn,
-			 ENABLE_IF(has_operator_func<T, const Tn &...>)>
-	inline decltype(auto) operator () (const Tn &... tn);
+			 ENABLE_IF(has_operator_func<T, Tn &&...>)>
+	inline decltype(auto) operator () (Tn &&... tn);
 
 	template <class... Tn,
-			 ENABLE_IF(has_operator_func<T, const Tn &...>)>
-	inline decltype(auto) operator () (const Tn &... tn) const;
+			 ENABLE_IF(has_operator_func<T, Tn &&...>)>
+	inline decltype(auto) operator () (Tn &&... tn) const;
 
 	/* operator -> */
 	inline T *operator -> (void);
@@ -251,25 +253,17 @@ public: /* Others */
 	/* Get the pointer from the shared pointer */
 	inline T *Get(void) const;
 
-	/* Swap from same type. */
-	inline void Swap(CSharedPtr<T> &p);
-
-	/* Swap from child. */
+	/* Swap. */
 	template <class T1,
-			 ENABLE_IF(std::is_base_of<T, T1>),
-			 ENABLE_IF(!std::is_base_of<T1, T>)>
-	inline void Swap(CSharedPtr<T1> &p);
-
-	/* Swap from parent. */
-	template <class T1,
-			 ENABLE_IF(!std::is_base_of<T, T1>),
-			 ENABLE_IF(std::is_base_of<T1, T>)>
-	inline void Swap(CSharedPtr<T1> &p);
+			 DEBUG_TEMPLATE,
+			 ENABLE_IF(MAYBE_ASSIGNABLE(T, T1))>
+	inline void Swap(CSharedPtr<T1> &t1);
 
 	/* Get the reference information */
 	inline uint32_t GetRef(void) const;
 	inline uint32_t GetWeakRef(void) const;
 
+public: /* Implicit convert */
 	/* Implicit convert */
 	template <class T1,
 			 DEBUG_TEMPLATE,
@@ -298,6 +292,7 @@ public: /* Others */
 			 ENABLE_IF(SPTR_CAN_IMPLICIT_CONVERT(T1, T))>
 	inline T1 Convert(void) const;
 
+public: /* For debug purpose only. */
 	inline void Dump(void) const;
 
 public: /* Deleter */
@@ -327,7 +322,8 @@ public:
 	inline void ImSharedPtr(void);
 
 private: /* Friends */
-	friend class CWeakPtr<T>;
+	template <class T1>
+	friend class CWeakPtr;
 
 	template <class T1>
 	friend class CSharedPtr;
@@ -974,13 +970,15 @@ inline void CSharedPtr<T>::operator -= (T1 &&t1) const
 }
 
 template <class T>
-template <class T1>
-inline decltype(auto) CSharedPtr<T>::operator [](T1 p) const
+template <class T1,
+		 DECLARE_DEBUG_TEMPLATE,
+		 DECLARE_ENABLE_IF(has_member_operator_square_brackets<T, T1 &&>)>
+inline decltype(auto) CSharedPtr<T>::operator [](T1 &&t1) const
 {
 	SPTR_DEBUG("++[CSharedPtr<%s>(%p)]: []", TYPE_NAME(T), this);
 
 	if (nullptr != mBase) {
-		return (*(mBase->mPtr))[p];
+		return (*(mBase->mPtr))[std::forward<decltype(t1)>(t1)];
 	} else {
 		throw ES("Illegal NULL[]");
 	}
@@ -996,26 +994,26 @@ inline CSharedPtr<T>::operator bool_t() const
 
 template <class T>
 template <class... Tn,
-		 DECLARE_ENABLE_IF(has_operator_func<T, const Tn &...>)>
-inline decltype(auto) CSharedPtr<T>::operator () (const Tn &... tn)
+		 DECLARE_ENABLE_IF(has_operator_func<T, Tn && ...>)>
+inline decltype(auto) CSharedPtr<T>::operator () (Tn && ... tn)
 {
 	if (nullptr == mBase) {
 		throw ES("Empty CSharedPtr is used");
 	}
 
-	return (*(mBase->mPtr))(tn...);
+	return (*(mBase->mPtr))(std::forward<decltype(tn)>(tn)...);
 }
 
 template <class T>
 template <class... Tn,
-		 DECLARE_ENABLE_IF(has_operator_func<T, const Tn &...>)>
-inline decltype(auto) CSharedPtr<T>::operator () (const Tn &... tn) const
+		 DECLARE_ENABLE_IF(has_operator_func<T, Tn && ...>)>
+inline decltype(auto) CSharedPtr<T>::operator () (Tn && ... tn) const
 {
 	if (nullptr == mBase) {
 		throw ES("Empty CSharedPtr is used");
 	}
 
-	return (*((const T*)(mBase->mPtr)))(tn...);
+	return (*((const T*)(mBase->mPtr)))(std::forward<decltype(tn)>(tn)...);
 }
 
 template <class T>
@@ -1072,66 +1070,39 @@ inline T *CSharedPtr<T>::Get(void) const
 }
 
 template <class T>
-inline void CSharedPtr<T>::Swap(CSharedPtr<T> &p)
-{
-	SPTR_DEBUG("++[CSharedPtr<%s>(%p)]: swap to CSharedPtr<%s>",
-			   TYPE_NAME(T), this, TYPE_NAME(T));
-
-	auto tmp = p.mBase;
-	p.mBase = mBase;
-	mBase = tmp;
-
-	SPTR_DEBUG("--[CSharedPtr<%s>(%p)]: swap to CSharedPtr<%s>",
-			   TYPE_NAME(T), this, TYPE_NAME(T));
-}
-
-template <class T>
 template <class T1,
-		 DECLARE_ENABLE_IF(std::is_base_of<T, T1>),
-		 DECLARE_ENABLE_IF(!std::is_base_of<T1, T>)>
-inline void CSharedPtr<T>::Swap(CSharedPtr<T1> &p)
+		 DECLARE_DEBUG_TEMPLATE,
+		 DECLARE_ENABLE_IF(MAYBE_ASSIGNABLE(T, T1))>
+inline void CSharedPtr<T>::Swap(CSharedPtr<T1> &t1)
 {
-	SPTR_DEBUG("++[CSharedPtr<%s>(%p)]: swap to child CSharedPtr<%s>",
-			   TYPE_NAME(T), this, TYPE_NAME(T1));
+	SPTR_DEBUG("++[CSharedPtr<%s>(%p)]: swap to CSharedPtr<%s>(%p)",
+			   TYPE_NAME(T), this, TYPE_NAME(T1), t1.Get());
+
+	CSharedBase<T1> *tmp = nullptr;
+
+	/* t1 != nullptr */
+	if (t1) {
+		/* Makes sure target can be casted to me. */
+		DynamicCast<T1, T>(t1.Get());
+		tmp = t1.mBase;
+	}
 
 	if (nullptr != mBase) {
-		/* Make sure I can be casted to my child */
+		/* Makes sure I can be casted to the target. */
 		DynamicCast<T, T1>(mBase->mPtr);
-	}
 
-	auto tmp = p.mBase;
-	p.mBase = (CSharedBase<T1> *)mBase;
-	mBase = (CSharedBase<T> *)tmp;
-
-	SPTR_DEBUG("--[CSharedPtr<%s>(%p)]: swap to child CSharedPtr<%s>",
-			   TYPE_NAME(T), this, TYPE_NAME(T1));
-}
-
-template <class T>
-template <class T1,
-		 DECLARE_ENABLE_IF(!std::is_base_of<T, T1>),
-		 DECLARE_ENABLE_IF(std::is_base_of<T1, T>)>
-inline void CSharedPtr<T>::Swap(CSharedPtr<T1> &p)
-{
-	SPTR_DEBUG("++[CSharedPtr<%s>(%p)]: swap to base CSharedPtr<%s>",
-			   TYPE_NAME(T), this, TYPE_NAME(T1));
-
-	if (nullptr != mBase) {
-		if (p) {
-			/* Make sure my parent can be casted to me */
-			DynamicCast<T1, T>(mBase->mPtr);
-		}
-
-		auto tmp = p.mBase;
-		p.mBase = (CSharedBase<T1> *)mBase;
-		mBase = (CSharedBase<T> *)tmp;
+		t1.mBase = (CSharedBase<T1> *)mBase;
+		t1.SetShared();
 	} else {
-		mBase = (CSharedBase<T> *)p.mBase;
-		p.mBase = nullptr;
+		t1.mBase = nullptr;
+		t1.SetShared();
 	}
 
-	SPTR_DEBUG("--[CSharedPtr<%s>(%p)]: swap to base CSharedPtr<%s>",
-			   TYPE_NAME(T), this, TYPE_NAME(T1));
+	mBase = (CSharedBase<T> *)tmp;
+	SetShared();
+
+	SPTR_DEBUG("--[CSharedPtr<%s>(%p)]: swap to CSharedPtr<%s>(%p)",
+			   TYPE_NAME(T), this, TYPE_NAME(T1), t1.Get());
 }
 
 template <class T>

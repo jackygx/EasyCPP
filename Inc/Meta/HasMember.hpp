@@ -208,6 +208,7 @@ HAS_MEMBER_OPS(sub_equal, -=);
 HAS_MEMBER_OPS(add, +);
 HAS_MEMBER_OPS(bigger, >);
 HAS_MEMBER_OPS(smaller, <);
+HAS_MEMBER_OPS(square_brackets, []);
 
 #define HAS_OPS(_name, ops) \
 	template <typename T1, typename T2> \

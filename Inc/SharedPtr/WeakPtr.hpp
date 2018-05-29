@@ -37,11 +37,6 @@ public:
 			 ENABLE_IF(MAYBE_ASSIGNABLE(T, T1))>
 	inline CWeakPtr(const CSharedPtr<T1> &t);
 
-	/* Constructor from shared base */
-	template <class T1,
-			 ENABLE_IF(MAYBE_ASSIGNABLE(T, T1))>
-	inline CWeakPtr(CSharedBase<T1> &base);
-
 	/* Destructor */
 	inline ~CWeakPtr(void);
 
@@ -49,11 +44,6 @@ public:
 	template <class T1,
 			 ENABLE_IF(MAYBE_ASSIGNABLE(T, T1))>
 	inline CWeakPtr<T> &operator = (const CSharedPtr<T1> &t);
-
-	/* operator = from shared base */
-	template <class T1,
-			 ENABLE_IF(MAYBE_ASSIGNABLE(T, T1))>
-	inline CWeakPtr<T> &operator = (CSharedBase<T1> &base);
 
 	/* Get shared pointer from weak pointer */
 	inline CSharedPtr<T> Lock(void) const;
@@ -64,11 +54,22 @@ public:
 	/* Get reference information */
 	inline uint32_t GetRef(void) const;
 	inline uint32_t GetWeakRef(void) const;
+
+	/* This is only allowed used by CEnableSharedPtr<T> to SetShared() */
+private:
+	template <class T1>
+	friend class CEnableSharedPtr;
+
+	/* operator = from shared base */
+	template <class T1,
+			 ENABLE_IF(MAYBE_ASSIGNABLE(T, T1))>
+	inline CWeakPtr<T> &operator = (CSharedBase<T1> &base);
 };
 
 /* =====================================================================
  *							Implement CWeakPtr
  * ===================================================================== */
+/* Constructor an empty weak pointer */
 template <class T>
 inline CWeakPtr<T>::CWeakPtr(void) :
 	mBase(nullptr)
@@ -76,6 +77,7 @@ inline CWeakPtr<T>::CWeakPtr(void) :
 	SPTR_DEBUG("[CWeakPtr<%s>]: Construct default", TYPE_NAME(T));
 }
 
+/* Constructor from shared pointer */
 template <class T>
 template <class T1,
 		 DECLARE_ENABLE_IF(MAYBE_ASSIGNABLE(T, T1))>
@@ -93,27 +95,7 @@ inline CWeakPtr<T>::CWeakPtr(const CSharedPtr<T1> &t) :
 			   TYPE_NAME(T), TYPE_NAME(T1));
 }
 
-template <class T>
-template <class T1,
-		 DECLARE_ENABLE_IF(MAYBE_ASSIGNABLE(T, T1))>
-inline CWeakPtr<T>::CWeakPtr(CSharedBase<T1> &base) :
-#ifdef DEBUG_SPTR
-	mBase(nullptr)
-#else
-	mBase(base.template AddWeakRef<T>())
-#endif
-{
-	SPTR_DEBUG("++[CWeakPtr<%s>]: Construct from CSharedBase<%s>",
-			   TYPE_NAME(T), TYPE_NAME(T1));
-
-#ifdef DEBUG_SPTR
-	mBase = base.template AddWeakRef<T>();
-#endif
-
-	SPTR_DEBUG("--[CWeakPtr<%s>]: Construct from CSharedBase<%s>",
-			   TYPE_NAME(T), TYPE_NAME(T1));
-}
-
+/* Destructor */
 template <class T>
 inline CWeakPtr<T>::~CWeakPtr(void)
 {
@@ -122,6 +104,7 @@ inline CWeakPtr<T>::~CWeakPtr(void)
 	SPTR_DEBUG("--[CWeakPtr<%s>]: Destruct", TYPE_NAME(T));
 }
 
+/* operator = from shared pointer */
 template <class T>
 template <class T1,
 		 DECLARE_ENABLE_IF(MAYBE_ASSIGNABLE(T, T1))>
@@ -142,24 +125,7 @@ inline CWeakPtr<T> &CWeakPtr<T>::operator = (const CSharedPtr<T1> &t)
 	return *this;
 }
 
-template <class T>
-template <class T1,
-		 DECLARE_ENABLE_IF(MAYBE_ASSIGNABLE(T, T1))>
-inline CWeakPtr<T> &CWeakPtr<T>::operator = (CSharedBase<T1> &base)
-{
-	SPTR_DEBUG("++[CWeakPtr<%s>]: operator = from CSharedBase<%s>",
-			   TYPE_NAME(T), TYPE_NAME(T1));
-
-	Release();
-
-	mBase = base.template AddWeakRef<T>();
-
-	SPTR_DEBUG("--[CWeakPtr<%s>]: operator = from CSharedBase<%s>",
-			   TYPE_NAME(T), TYPE_NAME(T1));
-
-	return *this;
-}
-
+/* Get shared pointer from weak pointer */
 template <class T>
 inline CSharedPtr<T> CWeakPtr<T>::Lock(void) const
 {
@@ -167,7 +133,7 @@ inline CSharedPtr<T> CWeakPtr<T>::Lock(void) const
 
 	CSharedPtr<T> t(nullptr);
 
-	if (mBase->Lock()) {
+	if ((nullptr != mBase) && mBase->Lock()) {
 		t.mBase = mBase;
 	}
 
@@ -176,6 +142,7 @@ inline CSharedPtr<T> CWeakPtr<T>::Lock(void) const
 	return t;
 }
 
+/* Release weak pointer */
 template <class T>
 inline void CWeakPtr<T>::Release(void)
 {
@@ -203,6 +170,25 @@ inline uint32_t CWeakPtr<T>::GetWeakRef(void) const
 	SPTR_DEBUG("[CWeakPtr<%s>]: GetWeakRef", TYPE_NAME(T));
 
 	return (nullptr == mBase) ? 0 : mBase->mWeakRef;
+}
+
+/* operator = from shared base */
+template <class T>
+template <class T1,
+		 DECLARE_ENABLE_IF(MAYBE_ASSIGNABLE(T, T1))>
+inline CWeakPtr<T> &CWeakPtr<T>::operator = (CSharedBase<T1> &base)
+{
+	SPTR_DEBUG("++[CWeakPtr<%s>]: operator = from CSharedBase<%s>",
+			   TYPE_NAME(T), TYPE_NAME(T1));
+
+	Release();
+
+	mBase = base.template AddWeakRef<T>();
+
+	SPTR_DEBUG("--[CWeakPtr<%s>]: operator = from CSharedBase<%s>",
+			   TYPE_NAME(T), TYPE_NAME(T1));
+
+	return *this;
 }
 
 #endif /* __WEAK_PTR_HPP__ */
