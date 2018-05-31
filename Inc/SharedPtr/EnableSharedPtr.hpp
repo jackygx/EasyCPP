@@ -26,6 +26,8 @@ template <class T>
 class CWeakPtr;
 
 HAS_MEMBER(ImEnableSharedPtr);
+#define HAS_ENABLE_SHARED_PTR(T) \
+	has_derived_member_ImEnableSharedPtr<T, CEnableSharedPtr<REMOVE_CONST(T)>>
 
 template <class T>
 class CEnableSharedPtr
@@ -55,6 +57,9 @@ public:
 
 	/* For META program only */
 	inline void ImEnableSharedPtr(void) const;
+
+private:
+	inline void Dump(void) const;
 };
 
 /* =====================================================================
@@ -65,6 +70,7 @@ template <class T>
 inline CEnableSharedPtr<T>::CEnableSharedPtr(void)
 {
 	SPTR_DEBUG("[CEnableSharedPtr<%s>]: construct default", TYPE_NAME(T));
+	Dump();
 }
 
 template <class T>
@@ -77,7 +83,9 @@ inline void CEnableSharedPtr<T>::SetSharedBase(CSharedBase<T1> &base) const
 	SPTR_DEBUG("++[CEnableSharedPtr<%s>]: SetSharedBase from CSharedBase<%s>",
 			   TYPE_NAME(T), TYPE_NAME(T1));
 
+	Dump();
 	mConstInst = base;
+	Dump();
 
 	SPTR_DEBUG("--[CEnableSharedPtr<%s>]: SetSharedBase from CSharedBase<%s>",
 			   TYPE_NAME(T), TYPE_NAME(T1));
@@ -93,8 +101,10 @@ inline void CEnableSharedPtr<T>::SetSharedBase(CSharedBase<T1> &base)
 	SPTR_DEBUG("++[CEnableSharedPtr<%s>]: SetSharedBase from CSharedBase<%s>",
 			   TYPE_NAME(T), TYPE_NAME(T1));
 
+	Dump();
 	mInst = base;
 	mConstInst = base;
+	Dump();
 
 	SPTR_DEBUG("--[CEnableSharedPtr<%s>]: SetSharedBase from CSharedBase<%s>",
 			   TYPE_NAME(T), TYPE_NAME(T1));
@@ -105,7 +115,9 @@ inline CSharedPtr<T> CEnableSharedPtr<T>::Share(void)
 {
 	SPTR_DEBUG("++[CEnableSharedPtr<%s>]: share", TYPE_NAME(T));
 
+	Dump();
 	auto ret = mInst.Lock();
+	Dump();
 
 	SPTR_DEBUG("--[CEnableSharedPtr<%s>]: share", TYPE_NAME(T));
 
@@ -117,11 +129,20 @@ inline CSharedPtr<const T> CEnableSharedPtr<T>::Share(void) const
 {
 	SPTR_DEBUG("++[CEnableSharedPtr<%s>]: share const", TYPE_NAME(T));
 
+	Dump();
 	auto ret = mConstInst.Lock();
+	Dump();
 
 	SPTR_DEBUG("--CEnableSharedPtr<%s>]: share const", TYPE_NAME(T));
 
 	return ret;
+}
+
+template <class T>
+inline void CEnableSharedPtr<T>::Dump(void) const
+{
+	SPTR_DEBUG("[CEnableSharedPtr<%s>(%p)]: mInst: %p, mConstInst: %p",
+			   TYPE_NAME(T), this, &mInst, &mConstInst);
 }
 
 #endif /* __ENABLE_SHARED_PTR_HPP__ */

@@ -292,7 +292,7 @@ public: /* Implicit convert */
 			 ENABLE_IF(SPTR_CAN_IMPLICIT_CONVERT(T1, T))>
 	inline T1 Convert(void) const;
 
-public: /* For debug purpose only. */
+private: /* For debug purpose only. */
 	inline void Dump(void) const;
 
 public: /* Deleter */
@@ -310,11 +310,11 @@ private: /* Help function */
 	inline void Replace(CSharedBase<T> *base);
 
 	template <class K = T,
-			 ENABLE_IF(has_member_ImEnableSharedPtr<K>)>
+			 ENABLE_IF(HAS_ENABLE_SHARED_PTR(K))>
 	inline void SetShared(void);
 
 	template <class K = T,
-			 ENABLE_IF(!has_member_ImEnableSharedPtr<K>)>
+			 ENABLE_IF(!HAS_ENABLE_SHARED_PTR(K))>
 	inline void SetShared(void);
 
 public:
@@ -1241,7 +1241,7 @@ inline void CSharedPtr<T>::Replace(CSharedBase<T> *base)
 
 template <class T>
 template <class K,
-		 DECLARE_ENABLE_IF(has_member_ImEnableSharedPtr<K>)>
+		 DECLARE_ENABLE_IF(HAS_ENABLE_SHARED_PTR(K))>
 inline void CSharedPtr<T>::SetShared(void)
 {
 	SPTR_DEBUG("++[CSharedPtr<%s>(%p)]: SetShared",
@@ -1251,7 +1251,9 @@ inline void CSharedPtr<T>::SetShared(void)
 		throw ES("Set the shared base for empty CSharedPtr");
 	}
 
-	mBase->mPtr->SetSharedBase(*mBase);
+	Dump();
+	mBase->mPtr->CEnableSharedPtr<REMOVE_CONST(T)>::SetSharedBase(*mBase);
+	Dump();
 
 	SPTR_DEBUG("--[CSharedPtr<%s>(%p)]: SetShared",
 			   TYPE_NAME(T), this);
@@ -1259,7 +1261,7 @@ inline void CSharedPtr<T>::SetShared(void)
 
 template <class T>
 template <class K,
-		 DECLARE_ENABLE_IF(!has_member_ImEnableSharedPtr<K>)>
+		 DECLARE_ENABLE_IF(!HAS_ENABLE_SHARED_PTR(K))>
 inline void CSharedPtr<T>::SetShared(void)
 {
 	SPTR_DEBUG("[CSharedPtr<%s>(%p)]: SetShared ignore",

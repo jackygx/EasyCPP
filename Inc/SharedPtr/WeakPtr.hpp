@@ -55,6 +55,9 @@ public:
 	inline uint32_t GetRef(void) const;
 	inline uint32_t GetWeakRef(void) const;
 
+private: /* For debug purpose only. */
+	inline void Dump(void) const;
+
 	/* This is only allowed used by CEnableSharedPtr<T> to SetShared() */
 private:
 	template <class T1>
@@ -74,7 +77,10 @@ template <class T>
 inline CWeakPtr<T>::CWeakPtr(void) :
 	mBase(nullptr)
 {
-	SPTR_DEBUG("[CWeakPtr<%s>]: Construct default", TYPE_NAME(T));
+	SPTR_DEBUG("[CWeakPtr<%s>(%p)]: Construct default",
+			TYPE_NAME(T), this);
+
+	Dump();
 }
 
 /* Constructor from shared pointer */
@@ -84,24 +90,27 @@ template <class T1,
 inline CWeakPtr<T>::CWeakPtr(const CSharedPtr<T1> &t) :
 	mBase(nullptr)
 {
-	SPTR_DEBUG("++[CWeakPtr<%s>]: Construct from CSharedPtr<%s>",
-			   TYPE_NAME(T), TYPE_NAME(T1));
+	SPTR_DEBUG("++[CWeakPtr<%s>(%p)]: Construct from CSharedPtr<%s>",
+			   TYPE_NAME(T), this, TYPE_NAME(T1));
 
 	if (t) {
 		mBase = t.mBase->template AddWeakRef<T>();
 	}
 
-	SPTR_DEBUG("--[CWeakPtr<%s>]: Construct from CSharedPtr<%s>",
-			   TYPE_NAME(T), TYPE_NAME(T1));
+	Dump();
+
+	SPTR_DEBUG("--[CWeakPtr<%s>(%p)]: Construct from CSharedPtr<%s>",
+			   TYPE_NAME(T), this, TYPE_NAME(T1));
 }
 
 /* Destructor */
 template <class T>
 inline CWeakPtr<T>::~CWeakPtr(void)
 {
-	SPTR_DEBUG("++[CWeakPtr<%s>]: Destruct", TYPE_NAME(T));
+	SPTR_DEBUG("++[CWeakPtr<%s>(%p)]: Destruct", TYPE_NAME(T), this);
+	Dump();
 	Release();
-	SPTR_DEBUG("--[CWeakPtr<%s>]: Destruct", TYPE_NAME(T));
+	SPTR_DEBUG("--[CWeakPtr<%s>(%p)]: Destruct", TYPE_NAME(T), this);
 }
 
 /* operator = from shared pointer */
@@ -112,6 +121,7 @@ inline CWeakPtr<T> &CWeakPtr<T>::operator = (const CSharedPtr<T1> &t)
 {
 	SPTR_DEBUG("++[CWeakPtr<%s>]: operator = from CSharedPtr<%s>",
 			   TYPE_NAME(T), TYPE_NAME(T1));
+	Dump();
 
 	Release();
 
@@ -119,6 +129,7 @@ inline CWeakPtr<T> &CWeakPtr<T>::operator = (const CSharedPtr<T1> &t)
 		mBase = t.mBase->template AddWeakRef<T>();
 	}
 
+	Dump();
 	SPTR_DEBUG("--[CWeakPtr<%s>]: operator = from CSharedPtr<%s>",
 			   TYPE_NAME(T), TYPE_NAME(T1));
 
@@ -130,6 +141,7 @@ template <class T>
 inline CSharedPtr<T> CWeakPtr<T>::Lock(void) const
 {
 	SPTR_DEBUG("++[CWeakPtr<%s>]: Lock", TYPE_NAME(T));
+	Dump();
 
 	CSharedPtr<T> t(nullptr);
 
@@ -137,6 +149,7 @@ inline CSharedPtr<T> CWeakPtr<T>::Lock(void) const
 		t.mBase = mBase;
 	}
 
+	Dump();
 	SPTR_DEBUG("--[CWeakPtr<%s>]: Lock", TYPE_NAME(T));
 
 	return t;
@@ -147,28 +160,26 @@ template <class T>
 inline void CWeakPtr<T>::Release(void)
 {
 	SPTR_DEBUG("++[CWeakPtr<%s>]: Release", TYPE_NAME(T));
+	Dump();
 
 	if (nullptr != mBase) {
 		mBase->ReleaseWeakRef();
 		mBase = nullptr;
 	}
 
+	Dump();
 	SPTR_DEBUG("--[CWeakPtr<%s>]: Release", TYPE_NAME(T));
 }
 
 template <class T>
 inline uint32_t CWeakPtr<T>::GetRef(void) const
 {
-	SPTR_DEBUG("[CWeakPtr<%s>]: GetRef", TYPE_NAME(T));
-
 	return (nullptr == mBase) ? 0 : mBase->mRef;
 }
 
 template <class T>
 inline uint32_t CWeakPtr<T>::GetWeakRef(void) const
 {
-	SPTR_DEBUG("[CWeakPtr<%s>]: GetWeakRef", TYPE_NAME(T));
-
 	return (nullptr == mBase) ? 0 : mBase->mWeakRef;
 }
 
@@ -189,6 +200,14 @@ inline CWeakPtr<T> &CWeakPtr<T>::operator = (CSharedBase<T1> &base)
 			   TYPE_NAME(T), TYPE_NAME(T1));
 
 	return *this;
+}
+
+template <class T>
+inline void CWeakPtr<T>::Dump(void) const
+{
+	SPTR_DEBUG("[CWeakPtr<%s>(%p)]: mBase: %p, mPtr: %p, ref: %u, wref: %u",
+			   TYPE_NAME(T), this, mBase, mBase ? mBase->Get() : nullptr,
+			   GetRef(), GetWeakRef());
 }
 
 #endif /* __WEAK_PTR_HPP__ */

@@ -201,7 +201,6 @@ inline bool CSharedBase<T>::Lock(void) const
 template <class T>
 inline T *CSharedBase<T>::Get(void)
 {
-	SPTR_DEBUG("[CSharedBase<%s>(%p)]: get", TYPE_NAME(T), this);
 	return mPtr;
 }
 
