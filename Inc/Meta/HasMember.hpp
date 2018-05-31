@@ -100,25 +100,6 @@
 		}; \
 	}; \
  \
-	template <typename __M, typename... __MTypes> \
-	struct has_template_member_##func<__M, pack<__MTypes...>> { \
-	private: \
-		template<typename U> \
-		constexpr static auto check(int) \
-		->decltype(std::declval<U>().template func<__MTypes...>(), std::true_type()) { \
-			return std::true_type(); \
-		} \
- \
-		template<typename U> \
-		constexpr static std::false_type check(...) { \
-			return std::false_type(); \
-		} \
-	public: \
-		enum { \
-			value = std::is_same<decltype(check<__M>(0)), std::true_type>::value \
-		}; \
-	}; \
- \
 	template <typename... __Mn> \
 	struct has_pointer_template_member_##func {}; \
  \
@@ -142,12 +123,16 @@
 		}; \
 	}; \
  \
-	template <typename __M, typename... __MTypes> \
-	struct has_pointer_template_member_##func<__M, pack<__MTypes...>> { \
+	template <typename... __Mn> \
+	struct has_derived_member_##func {}; \
+ \
+	template <typename __M, typename __MTypes, typename... __MArgs> \
+	struct has_derived_member_##func<__M, __MTypes, __MArgs...> { \
 	private: \
 		template<typename U> \
 		constexpr static auto check(int) \
-		->decltype(std::declval<U>()->template func<__MTypes...>(), std::true_type()) { \
+		->decltype(std::declval<U>().__MTypes::func(std::declval<__MArgs>()...), \
+				std::true_type()) { \
 			return std::true_type(); \
 		} \
  \
