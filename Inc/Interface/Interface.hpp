@@ -23,19 +23,19 @@
 	class I##name; \
 	typedef CSharedPtr<I##name> I##name##Ptr; \
 	typedef CWeakPtr<I##name> I##name##WeakPtr; \
-	typedef CSharedToken<I##name> I##name##Token; \
 	typedef CSharedPtr<const I##name> IConst##name##Ptr; \
-	typedef CWeakPtr<const I##name> IConst##name##WeakPtr; \
-	typedef CSharedToken<const I##name> IConst##name##Token;
+	typedef CWeakPtr<const I##name> IConst##name##WeakPtr;\
+	typedef CSharedToken<I##name> I##name##Token; \
+	typedef CSharedToken<const I##name> IConst##name##Token
 
 #define DEFINE_CLASS(name) \
 	class C##name; \
 	typedef CSharedPtr<C##name> C##name##Ptr; \
 	typedef CWeakPtr<C##name> C##name##WeakPtr; \
-	typedef CSharedToken<C##name> C##name##Token; \
 	typedef CSharedPtr<const C##name> CConst##name##Ptr; \
 	typedef CWeakPtr<const C##name> CConst##name##WeakPtr; \
-	typedef CSharedToken<const C##name> CConst##name##Token;
+	typedef CSharedToken<C##name> C##name##Token; \
+	typedef CSharedToken<const C##name> CConst##name##Token
 
 #endif /* __INTERFACE_HPP__ */
 

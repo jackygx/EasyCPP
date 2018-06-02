@@ -20,6 +20,8 @@
 #include <memory>
 
 #include "Pack.hpp"
+#include "EnableIf.hpp"
+#include "HasMember.hpp"
 
 template <class...>
 using void_t = void;
@@ -100,6 +102,24 @@ struct deduce_function<T, void_t<decltype(&T::operator())>>
 #define NPARAM(fn) deduce_function<fn>::nParam
 
 #define FN_RET_TYPE(fn) typename deduce_function<fn>::ret_type
+
+class CIsFuncPointer
+{
+public:
+	template <class Fn,
+			 ENABLE_IF(!IS_LAMBDA(Fn))>
+	inline void IsFuncPointer(void);
+
+	template <class Fn,
+			 ENABLE_IF(IS_LAMBDA(Fn)),
+			 ENABLE_IFEQ(sizeof(Fn), 1)>
+	inline void IsFuncPointer(void);
+};
+
+HAS_MEMBER(IsFuncPointer);
+
+#define IS_FUNC_POINTER(Fn) \
+	has_template_member_IsFuncPointer<CIsFuncPointer, pack<Fn>>
 
 #endif /* __DEDUCE_FUNC_HPP__ */
 

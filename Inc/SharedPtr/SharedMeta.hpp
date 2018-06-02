@@ -30,7 +30,7 @@ template <class TSrc,		/* Child */
 		 ENABLE_IF(IS_STATICALLY_ASSIGNABLE(TTar, TSrc))>
 static inline TTar *DynamicCast(TSrc *src)
 {
-	return src;
+	return static_cast<TTar *>(src);
 }
 
 /* DynamicCast from Parent to Child */

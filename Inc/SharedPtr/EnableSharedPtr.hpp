@@ -44,13 +44,13 @@ public:
 			 DEBUG_TEMPLATE,
 			 ENABLE_IF(IS_CONST(T1)),
 			 ENABLE_IF(MAYBE_ASSIGNABLE(const T, T1))>
-	inline void SetSharedBase(CSharedBase<T1> &base) const;
+	inline void SetShared(const CSharedPtr<T1> &ptr) const;
 
 	template <class T1,
 			 DEBUG_TEMPLATE,
 			 ENABLE_IF(!IS_CONST(T1)),
 			 ENABLE_IF(MAYBE_ASSIGNABLE(T, T1))>
-	inline void SetSharedBase(CSharedBase<T1> &base);
+	inline void SetShared(const CSharedPtr<T1> &ptr);
 
 	inline CSharedPtr<T> Share(void);
 	inline CSharedPtr<const T> Share(void) const;
@@ -69,8 +69,8 @@ private:
 template <class T>
 inline CEnableSharedPtr<T>::CEnableSharedPtr(void)
 {
-	SPTR_DEBUG("[CEnableSharedPtr<%s>]: construct default", TYPE_NAME(T));
-	Dump();
+	SPTR_DEBUG(ENSPTR_HEAD() SPTR_PTR " default construct",
+			   TYPE_NAME(T), this);
 }
 
 template <class T>
@@ -78,17 +78,17 @@ template <class T1,
 		 DECLARE_DEBUG_TEMPLATE,
 		 DECLARE_ENABLE_IF(IS_CONST(T1)),
 		 DECLARE_ENABLE_IF(MAYBE_ASSIGNABLE(const T, T1))>
-inline void CEnableSharedPtr<T>::SetSharedBase(CSharedBase<T1> &base) const
+inline void CEnableSharedPtr<T>::SetShared(const CSharedPtr<T1> &ptr) const
 {
-	SPTR_DEBUG("++[CEnableSharedPtr<%s>]: SetSharedBase from CSharedBase<%s>",
-			   TYPE_NAME(T), TYPE_NAME(T1));
+	SPTR_DEBUG_ENTRY(ENSPTR_HEAD() SPTR_PTR " SetShared const " SPTR_HEAD() SPTR_PTR,
+					 TYPE_NAME(T), this, TYPE_NAME(T1), &ptr);
 
 	Dump();
-	mConstInst = base;
+	mConstInst = ptr;
 	Dump();
 
-	SPTR_DEBUG("--[CEnableSharedPtr<%s>]: SetSharedBase from CSharedBase<%s>",
-			   TYPE_NAME(T), TYPE_NAME(T1));
+	SPTR_DEBUG_EXIT(ENSPTR_HEAD() SPTR_PTR " SetShared const " SPTR_HEAD() SPTR_PTR,
+					TYPE_NAME(T), this, TYPE_NAME(T1), &ptr);
 }
 
 template <class T>
@@ -96,30 +96,28 @@ template <class T1,
 		 DECLARE_DEBUG_TEMPLATE,
 		 DECLARE_ENABLE_IF(!IS_CONST(T1)),
 		 DECLARE_ENABLE_IF(MAYBE_ASSIGNABLE(T, T1))>
-inline void CEnableSharedPtr<T>::SetSharedBase(CSharedBase<T1> &base)
+inline void CEnableSharedPtr<T>::SetShared(const CSharedPtr<T1> &ptr)
 {
-	SPTR_DEBUG("++[CEnableSharedPtr<%s>]: SetSharedBase from CSharedBase<%s>",
-			   TYPE_NAME(T), TYPE_NAME(T1));
+	SPTR_DEBUG_ENTRY(ENSPTR_HEAD() SPTR_PTR " SetShared " SPTR_HEAD() SPTR_PTR,
+					 TYPE_NAME(T), this, TYPE_NAME(T1), &ptr);
 
 	Dump();
-	mInst = base;
-	mConstInst = base;
+	mInst = ptr;
+	mConstInst = ptr;
 	Dump();
 
-	SPTR_DEBUG("--[CEnableSharedPtr<%s>]: SetSharedBase from CSharedBase<%s>",
-			   TYPE_NAME(T), TYPE_NAME(T1));
+	SPTR_DEBUG_EXIT(ENSPTR_HEAD() SPTR_PTR " SetShared " SPTR_HEAD() SPTR_PTR,
+					TYPE_NAME(T), this, TYPE_NAME(T1), &ptr);
 }
 
 template <class T>
 inline CSharedPtr<T> CEnableSharedPtr<T>::Share(void)
 {
-	SPTR_DEBUG("++[CEnableSharedPtr<%s>]: share", TYPE_NAME(T));
+	SPTR_DEBUG_ENTRY(ENSPTR_HEAD() SPTR_PTR " share", TYPE_NAME(T), this);
 
-	Dump();
 	auto ret = mInst.Lock();
-	Dump();
 
-	SPTR_DEBUG("--[CEnableSharedPtr<%s>]: share", TYPE_NAME(T));
+	SPTR_DEBUG_EXIT(ENSPTR_HEAD() SPTR_PTR " share", TYPE_NAME(T), this);
 
 	return ret;
 }
@@ -127,13 +125,11 @@ inline CSharedPtr<T> CEnableSharedPtr<T>::Share(void)
 template <class T>
 inline CSharedPtr<const T> CEnableSharedPtr<T>::Share(void) const
 {
-	SPTR_DEBUG("++[CEnableSharedPtr<%s>]: share const", TYPE_NAME(T));
+	SPTR_DEBUG_ENTRY(ENSPTR_HEAD() SPTR_PTR " share const", TYPE_NAME(T), this);
 
-	Dump();
 	auto ret = mConstInst.Lock();
-	Dump();
 
-	SPTR_DEBUG("--CEnableSharedPtr<%s>]: share const", TYPE_NAME(T));
+	SPTR_DEBUG_EXIT(ENSPTR_HEAD() SPTR_PTR " share const", TYPE_NAME(T), this);
 
 	return ret;
 }
@@ -141,8 +137,8 @@ inline CSharedPtr<const T> CEnableSharedPtr<T>::Share(void) const
 template <class T>
 inline void CEnableSharedPtr<T>::Dump(void) const
 {
-	SPTR_DEBUG("[CEnableSharedPtr<%s>(%p)]: mInst: %p, mConstInst: %p",
-			   TYPE_NAME(T), this, &mInst, &mConstInst);
+	SPTR_DUMP("Addr: %p mInst: %p, mConstInst: %p, Type: %s",
+			  this, &mInst, &mConstInst, TYPE_NAME(T));
 }
 
 #endif /* __ENABLE_SHARED_PTR_HPP__ */

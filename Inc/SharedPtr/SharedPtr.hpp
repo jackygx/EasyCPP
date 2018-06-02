@@ -21,21 +21,32 @@
 #include "WeakPtr.hpp"
 #include "EnableSharedPtr.hpp"
 #include "SharedToken.hpp"
+#include "SharedDeleter.hpp"
+
+/* Help function to create a CSharedPtr. */
+template <class T, class... Args>
+inline CSharedPtr<T> MakeShared(Args && ... args);
 
 template <class T>
 class CSharedPtr
 {
 private:
+	/* Object */
+	T *mPtr;
+
+	/* Saves counter and deleter */
 	CSharedBase<T> *mBase;
 
 public: /* Constructor and Destructor */
 	/* Construct for interface, an empty CSharedPtr is created. */
 	template <class K = T,
+			 ENABLE_IF(std::is_same<K, T>),
 			 ENABLE_IF(std::is_abstract<K>)>
 	inline CSharedPtr(void);
 
 	/* Construct for class, a new T is created. */
 	template <class K = T,
+			 ENABLE_IF(std::is_same<K, T>),
 			 ENABLE_IF(!std::is_abstract<K>)>
 	inline CSharedPtr(void);
 
@@ -61,14 +72,14 @@ public: /* Constructor and Destructor */
 	inline CSharedPtr(CSharedPtr<T1> &&ptr);
 
 	/* Constructor from pointer */
-	template <class TPtr,
+	template <class T1,
 			 class Deleter = void(T *),
 			 DEBUG_TEMPLATE,
-			 ENABLE_IF(MAYBE_ASSIGNABLE(T, TPtr))>
-	inline CSharedPtr(TPtr *ptr, const Deleter &deleter = DefaultDeleter);
+			 ENABLE_IF(MAYBE_ASSIGNABLE(T, T1))>
+	inline CSharedPtr(T1 *ptr, const Deleter &deleter = DefaultDeleter);
 
-	/* Constructor from CSharedBase (same type) */
-	inline CSharedPtr(CSharedBase<T> *ptr);
+	/* Constructor from pointer and CSharedBase. */
+	inline explicit CSharedPtr(T *ptr, CSharedBase<T> *base);
 
 	/* Constructor from multiple objects (overload) */
 	template <class... Tn,
@@ -81,12 +92,14 @@ public: /* Constructor and Destructor */
 	inline ~CSharedPtr(void);
 
 public:
-	/* Token: See CSharedToken.hpp for more information. */
-	/* Constructor from CSharedToken<T>. */
-	inline CSharedPtr(CSharedToken<T> *token, TokenOps ops = MOVE);
+	/* Adds reference and return this as a void *.
+	 * The caller must manually convert it back to
+	 * the CSharedPtr<T> with same type.
+	 * Otherwise, there will be problems. */
+	inline void *ToToken(void);
 
-	/* Convert to CSharedToken<T> */
-	inline CSharedToken<T> *ToToken(void);
+	/* Constructor from token */
+	inline CSharedPtr(const CSharedToken<T> *token);
 
 public: /* operator = */
 	/* operator = nullptr */
@@ -292,11 +305,8 @@ public: /* Implicit convert */
 			 ENABLE_IF(SPTR_CAN_IMPLICIT_CONVERT(T1, T))>
 	inline T1 Convert(void) const;
 
-private: /* For debug purpose only. */
-	inline void Dump(void) const;
-
 public: /* Deleter */
-	/* delete */
+	/* default delete */
 	static void DefaultDeleter(T *buf);
 
 	/* delete [] */
@@ -305,9 +315,21 @@ public: /* Deleter */
 	/* does nothing */
 	static void NullDeleter(T *);
 
+	/* For debug purpose only. */
+	inline void Dump(void) const;
+
 private: /* Help function */
 	/* Replace the current base to the new one */
-	inline void Replace(CSharedBase<T> *base);
+	template <class T1>
+	inline void Replace(const CSharedPtr<T1> &ptr);
+
+	template <class T1,
+			 ENABLE_IF(std::is_same<T1, T>)>
+	inline void CopyShared(void);
+
+	template <class T1,
+			 ENABLE_IF(!std::is_same<T1, T>)>
+	inline void CopyShared(void);
 
 	template <class K = T,
 			 ENABLE_IF(HAS_ENABLE_SHARED_PTR(K))>
@@ -316,6 +338,26 @@ private: /* Help function */
 	template <class K = T,
 			 ENABLE_IF(!HAS_ENABLE_SHARED_PTR(K))>
 	inline void SetShared(void);
+
+	/* Create SharedBase. */
+	/* The user create the pointer and provide the deleter. */
+	template <class T1,
+			 class DeleterFn,
+			 ENABLE_IF(MAYBE_ASSIGNABLE(T, T1)),
+			 ENABLE_IF(IS_FUNC_POINTER(DeleterFn))>
+	static inline CSharedPtr<T> CreateSharedBase(T1 *ptr, DeleterFn &fn);
+
+	template <class T1,
+			 class DeleterFn,
+			 ENABLE_IF(MAYBE_ASSIGNABLE(T, T1)),
+			 ENABLE_IF(!IS_FUNC_POINTER(DeleterFn))>
+	static inline CSharedPtr<T> CreateSharedBase(T1 *ptr, DeleterFn &fn);
+
+	/* Copy construct a SharedPtr from a valid input */
+	template <class T1,
+			 DEBUG_TEMPLATE,
+			 ENABLE_IF(MAYBE_ASSIGNABLE(T, T1))>
+	static inline CSharedPtr<T> CopySharedPtr(const CSharedPtr<T1> &t1);
 
 public:
 	/* Used only for meta programming. */
@@ -335,83 +377,69 @@ private: /* Friends */
 /* Construct for interface, an empty CSharedPtr is created. */
 template <class T>
 template <class K,
+		 DECLARE_ENABLE_IF(std::is_same<K, T>),
 		 DECLARE_ENABLE_IF(std::is_abstract<K>)>
 inline CSharedPtr<T>::CSharedPtr(void) :
-	mBase(nullptr)
+	CSharedPtr(nullptr)
 {
-	SPTR_DEBUG("[CSharedPtr<%s>(%p)]: construct default for interface",
+	SHARED_PTR_CHECK();
+	SPTR_DEBUG(SPTR_HEAD() SPTR_PTR " default construct for interface",
 			   TYPE_NAME(T), this);
 }
 
 /* Construct for class, a new T is created. */
 template <class T>
 template <class K,
+		 DECLARE_ENABLE_IF(std::is_same<K, T>),
 		 DECLARE_ENABLE_IF(!std::is_abstract<K>)>
 inline CSharedPtr<T>::CSharedPtr(void) :
-#ifdef DEBUG_SPTR
-	mBase(nullptr)
-#else
-	mBase(AllocCreateSharedBase<T>())
-#endif
+	CSharedPtr(MakeShared<T>())
 {
-	SPTR_DEBUG("++[CSharedPtr<%s>(%p)]: construct for class",
+	SHARED_PTR_CHECK();
+	SPTR_DEBUG(SPTR_HEAD() SPTR_PTR " default construct for class",
 			   TYPE_NAME(T), this);
-
-#ifdef DEBUG_SPTR
-	mBase = AllocCreateSharedBase<T>();
-#endif
-	SetShared();
-
-	SPTR_DEBUG("--[CSharedPtr<%s>(%p)]: construct for class, result: %p",
-			   TYPE_NAME(T), this, mBase);
 }
 
 /* Constructor from nullptr. */
 template <class T>
 inline CSharedPtr<T>::CSharedPtr(std::nullptr_t) :
+	mPtr(nullptr),
 	mBase(nullptr)
 {
-	SPTR_DEBUG("[CSharedPtr<%s>(%p)]: construct nullptr_t",
+	SHARED_PTR_CHECK();
+	SPTR_DEBUG(SPTR_HEAD() SPTR_PTR " construct nullptr_t",
 			   TYPE_NAME(T), this);
 }
 
 /* Copy constructor [Must defined] */
 template <class T>
 inline CSharedPtr<T>::CSharedPtr(const CSharedPtr<T> &ptr) :
-	mBase(nullptr)
+	CSharedPtr(CopySharedPtr(ptr))
 {
-	SPTR_DEBUG("++[CSharedPtr<%s>(%p)]: copy construct",
-			   TYPE_NAME(T), this);
-
-	if (ptr) {
-		ptr.Dump();
-		mBase = ptr.mBase->template AddRef<T>();
-		SetShared();
-		ptr.Dump();
-	}
-
-	SPTR_DEBUG("--[CSharedPtr<%s>(%p)]: copy construct, result: %p",
-			   TYPE_NAME(T), this, mBase);
+	SHARED_PTR_CHECK();
+	SPTR_DEBUG(SPTR_HEAD() SPTR_PTR " copy construct from "
+			   SPTR_HEAD(" &") SPTR_PTR,
+			   TYPE_NAME(T), this, TYPE_NAME(T), &ptr);
 }
 
 /* Move constructor [Must defined] */
 template <class T>
 inline CSharedPtr<T>::CSharedPtr(CSharedPtr<T> &&ptr) :
-	mBase(nullptr)
+	mPtr(ptr.mPtr),
+	mBase(ptr.mBase)
 {
-	SPTR_DEBUG("++[CSharedPtr<%s>(%p)]: move construct",
-			   TYPE_NAME(T), this);
+	SHARED_PTR_CHECK();
+	SPTR_DEBUG_ENTRY(SPTR_HEAD() SPTR_PTR " move construct from "
+					 SPTR_HEAD(" &&") SPTR_PTR,
+					 TYPE_NAME(T), this, TYPE_NAME(T), &ptr);
 
-	if (ptr) {
-		ptr.Dump();
-		mBase = ptr.mBase;
-		ptr.mBase = nullptr;
-		SetShared();
-		Dump();
-	}
+	ptr.mPtr = nullptr;
+	ptr.mBase = nullptr;
+	Dump();
 
-	SPTR_DEBUG("--[CSharedPtr<%s>(%p)]: move construct, result: %p",
-			   TYPE_NAME(T), this, mBase);
+	SPTR_DEBUG_EXIT(SPTR_HEAD() SPTR_PTR " move construct from "
+					SPTR_HEAD(" &&") SPTR_PTR,
+					TYPE_NAME(T), this, TYPE_NAME(T), &ptr);
 }
 
 /* Constructor from CSharedPtr (lref) */
@@ -420,21 +448,12 @@ template <class T1,
 		 DECLARE_DEBUG_TEMPLATE,
 		 DECLARE_ENABLE_IF(MAYBE_ASSIGNABLE(T, T1))>
 inline CSharedPtr<T>::CSharedPtr(const CSharedPtr<T1> &ptr) :
-	mBase(nullptr)
+	CSharedPtr(CopySharedPtr(ptr))
 {
-	SPTR_DEBUG("++[CSharedPtr<%s>(%p)]: construct from lref (CSharedPtr<%s> &)",
-			   TYPE_NAME(T), this, TYPE_NAME(T1));
-
-	if (ptr) {
-		ptr.Dump();
-		DynamicCast<T1, T>(ptr.Get());
-		mBase = ptr.mBase->template AddRef<T>();
-		SetShared();
-		ptr.Dump();
-	}
-
-	SPTR_DEBUG("--[CSharedPtr<%s>(%p)]: construct from lref (CSharedPtr<%s> &), result: %p",
-			   TYPE_NAME(T), this, TYPE_NAME(T1), mBase);
+	SHARED_PTR_CHECK();
+	SPTR_DEBUG(SPTR_HEAD() SPTR_PTR " construct from lref "
+			   SPTR_HEAD(" &") SPTR_PTR,
+			   TYPE_NAME(T), this, TYPE_NAME(T1), &ptr);
 }
 
 /* Constructor from CSharedPtr (rref) */
@@ -443,60 +462,54 @@ template <class T1,
 		 DECLARE_DEBUG_TEMPLATE,
 		 DECLARE_ENABLE_IF(MAYBE_ASSIGNABLE(T, T1))>
 inline CSharedPtr<T>::CSharedPtr(CSharedPtr<T1> &&ptr) :
-	mBase(nullptr)
+	mPtr(DynamicCast<T1, T>(ptr.mPtr)),
+	mBase((CSharedBase<T> *)ptr.mBase)
 {
-	SPTR_DEBUG("++[CSharedPtr<%s>(%p)]: construct from rref (CSharedPtr<%s> &&)",
-			   TYPE_NAME(T), this, TYPE_NAME(T1));
+	SHARED_PTR_CHECK();
+	SPTR_DEBUG_ENTRY(SPTR_HEAD() SPTR_PTR " construct from rref "
+					 SPTR_HEAD(" &&") SPTR_PTR,
+					 TYPE_NAME(T), this, TYPE_NAME(T1), &ptr);
 
-	if (ptr) {
-		ptr.Dump();
-		DynamicCast<T1, T>(ptr.Get());
-		mBase = (CSharedBase<T> *)ptr.mBase;
-		ptr.mBase = nullptr;
-		SetShared();
-		Dump();
+	ptr.mPtr = nullptr;
+	ptr.mBase = nullptr;
+
+	if (nullptr != mPtr) {
+		CopyShared<T1>();
 	}
 
-	SPTR_DEBUG("--[CSharedPtr<%s>(%p)]: construct from rref (CSharedPtr<%s> &&), result: %p",
-			   TYPE_NAME(T), this, TYPE_NAME(T1), mBase);
+	SPTR_DEBUG_EXIT(SPTR_HEAD() SPTR_PTR " construct from rref "
+					SPTR_HEAD(" &&") SPTR_PTR,
+					TYPE_NAME(T), this, TYPE_NAME(T1), &ptr);
 }
 
 /* Constructor from pointer */
 template <class T>
-template <class TPtr, class Deleter,
+template <class T1, class Deleter,
 		 DECLARE_DEBUG_TEMPLATE,
-		 DECLARE_ENABLE_IF(MAYBE_ASSIGNABLE(T, TPtr))>
-inline CSharedPtr<T>::CSharedPtr(TPtr *ptr, const Deleter &deleter) :
-#ifdef DEBUG_SPTR
-	mBase(nullptr)
-#else
-	mBase(CreateSharedBase<T>(ptr, deleter))
-#endif
+		 DECLARE_ENABLE_IF(MAYBE_ASSIGNABLE(T, T1))>
+inline CSharedPtr<T>::CSharedPtr(T1 *ptr, const Deleter &deleter) :
+	CSharedPtr(CreateSharedBase(ptr, deleter))
 {
-	SPTR_DEBUG("++[CSharedPtr<%s>(%p)]: construct from [%s *(%p)]",
-			   TYPE_NAME(T), this, TYPE_NAME(TPtr), ptr);
-
-#ifdef DEBUG_SPTR
-	mBase = CreateSharedBase<T>(ptr, deleter);
-	Dump();
-#endif
-
-	SetShared();
-
-	SPTR_DEBUG("--[CSharedPtr<%s>(%p)]: construct from [%s *(%p)], result: %p",
-			   TYPE_NAME(T), this, TYPE_NAME(TPtr), ptr, mBase);
+	SHARED_PTR_CHECK();
+	SPTR_DEBUG(SPTR_HEAD() SPTR_PTR " construct from "
+			   SPTR_TYPE(" *") SPTR_PTR,
+			   TYPE_NAME(T), this, TYPE_NAME(T1), ptr);
 }
 
-/* Constructor from CSharedBase (same type) */
+/* Constructor from pointer and CSharedBase. */
 template <class T>
-inline CSharedPtr<T>::CSharedPtr(CSharedBase<T> *ptr) :
-	mBase(ptr)
+inline CSharedPtr<T>::CSharedPtr(T *ptr, CSharedBase<T> *base) :
+	mPtr(ptr),
+	mBase(base)
 {
-	SPTR_DEBUG("  [CSharedPtr<%s>(%p)]: construct from [CSharedBase<%s> &(%p)]",
-			   TYPE_NAME(T), this, TYPE_NAME(T), ptr);
+	SHARED_PTR_CHECK();
+	SPTR_DEBUG(SPTR_HEAD() SPTR_PTR " construct from "
+			   SBASE_HEAD(" *") SPTR_PTR " and " SPTR_TYPE(" *") SPTR_PTR,
+			   TYPE_NAME(T), this, TYPE_NAME(T), base, TYPE_NAME(T), ptr);
 
-	if (nullptr == ptr) {
-		throw ES("Input CSharedBase cannot be nullptr");
+	if (nullptr == mBase || nullptr == mPtr) {
+		Dump();
+		throw ES("Input CSharedBase or pointer cannot be nullptr");
 	}
 
 	SetShared();
@@ -509,24 +522,10 @@ template <class... Tn,
 		 DECLARE_ENABLE_IF(!SPTR_CAN_SHARE(T, Tn && ...)),
 		 DECLARE_ENABLE_IF(has_constructor<T, Tn && ...>)>
 inline CSharedPtr<T>::CSharedPtr(Tn && ... tn) :
-#ifdef DEBUG_SPTR
-	mBase(nullptr)
-#else
-	mBase(AllocCreateSharedBase<T>(
-			std::forward<decltype(tn)>(tn)...))
-#endif
+	CSharedPtr(MakeShared<T>(std::forward<decltype(tn)>(tn)...))
 {
-	SPTR_DEBUG("++[CSharedPtr<%s>(%p)]: Construct from %lu const overload:",
-			   TYPE_NAME(T), this, sizeof...(Tn));
-	SPTR_VARIADIC_PRINT("\t<%s>\n",  TYPE_NAME(Tn));
-
-#ifdef DEBUG_SPTR
-	mBase = AllocCreateSharedBase<T>(std::forward<decltype(tn)>(tn)...);
-#endif
-
-	SetShared();
-
-	SPTR_PRINT("--[CSharedPtr<%s>(%p)]: Construct from %lu const overload.",
+	SHARED_PTR_CHECK();
+	SPTR_DEBUG(SPTR_HEAD() SPTR_PTR " Construct from " SPTR_LONG " params",
 			   TYPE_NAME(T), this, sizeof...(Tn));
 }
 
@@ -534,59 +533,52 @@ inline CSharedPtr<T>::CSharedPtr(Tn && ... tn) :
 template <class T>
 inline CSharedPtr<T>::~CSharedPtr(void)
 {
-	SPTR_DEBUG("++[CSharedPtr<%s>(%p)]: destructor %p",
-			   TYPE_NAME(T), this, mBase);
+	SHARED_PTR_CHECK_DESTRUCTOR();
+	SPTR_DEBUG_ENTRY(SPTR_HEAD() SPTR_PTR " destructor",
+					 TYPE_NAME(T), this);
 
+	Dump();
 	Release();
+	Dump();
 
-	SPTR_DEBUG("--[CSharedPtr<%s>(%p)]: destructor %p",
-			   TYPE_NAME(T), this, mBase);
+	SPTR_DEBUG_EXIT(SPTR_HEAD() SPTR_PTR " destructor",
+					TYPE_NAME(T), this);
 }
 
-/* Constructor from token. */
+/* Adds reference and return this as a void *.
+ * The caller must manually convert it back to
+ * the CSharedPtr<T> with same type.
+ * Otherwise, there will be problems. */
 template <class T>
-inline CSharedPtr<T>::CSharedPtr(CSharedToken<T> *token, TokenOps ops) :
-	mBase(nullptr)
+inline void *CSharedPtr<T>::ToToken(void)
 {
-	SPTR_DEBUG("++[CSharedPtr<%s>(%p)]: %s construct from (Token *)%p",
-			   TYPE_NAME(T), this, COPY == ops ? "copy" : "move", token);
-
-	if (nullptr == token || !token->mPtr) {
-		throw ES("A NULL token is used to construct");
-	}
-
-	if (COPY == ops) {
-		operator = (token->mPtr);
-	} else {
-		operator = (std::move(token->mPtr));
-	}
-
-	SPTR_DEBUG("--[CSharedPtr<%s>(%p)]: %s construct from (Token *)%p",
-			   TYPE_NAME(T), this, COPY == ops ? "copy" : "move", token);
+	SHARED_PTR_CHECK();
+	return CSharedToken<T>::Create(*this);
 }
 
-/* Convert to CSharedToken<T> */
+/* Constructor from token */
 template <class T>
-inline CSharedToken<T> *CSharedPtr<T>::ToToken(void)
+inline CSharedPtr<T>::CSharedPtr(const CSharedToken<T> *token) :
+	CSharedPtr(nullptr == token ? nullptr : token->mPtr)
 {
-	SPTR_DEBUG("++[CSharedPtr<%s>(%p)]: to token", TYPE_NAME(T), this);
-
-	char *buf = CSharedToken<T>::Pool::Alloc();
-	CSharedToken<T> *token = new (buf) CSharedToken<T>(mBase);
-
-	SPTR_DEBUG("--[CSharedPtr<%s>(%p)]: to token, result: %p",
+	SHARED_PTR_CHECK();
+	SPTR_DEBUG(SPTR_HEAD() SPTR_PTR " Construct from token: " SPTR_PTR,
 			   TYPE_NAME(T), this, token);
-
-	return token;
 }
 
 /* operator = nullptr */
 template <class T>
 inline CSharedPtr<T> &CSharedPtr<T>::operator = (std::nullptr_t)
 {
-	SPTR_DEBUG("++[CSharedPtr<%s>(%p)]: = nullptr", TYPE_NAME(T), this);
+	SHARED_PTR_CHECK();
+	SPTR_DEBUG_ENTRY(SPTR_HEAD() SPTR_PTR " =(N)",
+					 TYPE_NAME(T), this);
+
 	Release();
-	SPTR_DEBUG("--[CSharedPtr<%s>(%p)]: = nullptr", TYPE_NAME(T), this);
+
+	SPTR_DEBUG_EXIT(SPTR_HEAD() SPTR_PTR " =(N)",
+					TYPE_NAME(T), this);
+
 	return *this;
 }
 
@@ -594,17 +586,14 @@ inline CSharedPtr<T> &CSharedPtr<T>::operator = (std::nullptr_t)
 template <class T>
 inline CSharedPtr<T> &CSharedPtr<T>::operator = (const CSharedPtr<T> &t)
 {
-	SPTR_DEBUG("++[CSharedPtr<%s>(%p)]: copy = CSharedPtr<%s>",
-			   TYPE_NAME(T), this, TYPE_NAME(T));
+	SHARED_PTR_CHECK();
+	SPTR_DEBUG_ENTRY(SPTR_HEAD() SPTR_PTR " =(&) " SPTR_HEAD(" &") SPTR_PTR,
+					 TYPE_NAME(T), this, TYPE_NAME(T), &t);
 
-	if (t) {
-		Replace(t.mBase->template AddRef<T>());
-	} else {
-		Release();
-	}
+	Replace(t);
 
-	SPTR_DEBUG("--[CSharedPtr<%s>(%p)]: copy = CSharedPtr<%s>",
-			   TYPE_NAME(T), this, TYPE_NAME(T));
+	SPTR_DEBUG_EXIT(SPTR_HEAD() SPTR_PTR " =(&) " SPTR_HEAD(" &") SPTR_PTR,
+					TYPE_NAME(T), this, TYPE_NAME(T), &t);
 
 	return *this;
 }
@@ -616,18 +605,14 @@ template <class T1,
 		 DECLARE_ENABLE_IF(MAYBE_ASSIGNABLE(T, T1))>
 inline CSharedPtr<T> &CSharedPtr<T>::operator = (const CSharedPtr<T1> &t)
 {
-	SPTR_DEBUG("++[CSharedPtr<%s>(%p)]: = CSharedPtr<%s> &",
-			   TYPE_NAME(T), this, TYPE_NAME(T1));
+	SHARED_PTR_CHECK();
+	SPTR_DEBUG_ENTRY(SPTR_HEAD() SPTR_PTR " =(&) " SPTR_HEAD(" &") SPTR_PTR,
+					 TYPE_NAME(T), this, TYPE_NAME(T1), &t);
 
-	if (t) {
-		DynamicCast<T1, T>(t.Get());
-		Replace(t.mBase->template AddRef<T>());
-	} else {
-		Release();
-	}
+	Replace(t);
 
-	SPTR_DEBUG("--[CSharedPtr<%s>(%p)]: = CSharedPtr<%s> &",
-			   TYPE_NAME(T), this, TYPE_NAME(T1));
+	SPTR_DEBUG_EXIT(SPTR_HEAD() SPTR_PTR " =(&) " SPTR_HEAD(" &") SPTR_PTR,
+					TYPE_NAME(T), this, TYPE_NAME(T1), &t);
 
 	return *this;
 }
@@ -639,19 +624,31 @@ template <class T1,
 		 DECLARE_ENABLE_IF(MAYBE_ASSIGNABLE(T, T1))>
 inline CSharedPtr<T> &CSharedPtr<T>::operator = (CSharedPtr<T1> &&t)
 {
-	SPTR_DEBUG("++[CSharedPtr<%s>(%p)] = CSharedPtr<%s> &&",
-			   TYPE_NAME(T), this, TYPE_NAME(T1));
+	SHARED_PTR_CHECK();
+	Release();
 
 	if (t) {
-		DynamicCast<T1, T>(t.Get());
-		Replace((CSharedBase<T> *)t.mBase);
+		SPTR_DEBUG_ENTRY(SPTR_HEAD() SPTR_PTR " =(&&) " SPTR_HEAD(" &&") SPTR_PTR,
+						 TYPE_NAME(T), this, TYPE_NAME(T1), &t);
+
+		/* DynamicCast MUST do first.
+		 * So when the exception happens,
+		 * the mBase is still nullptr */
+		mPtr = DynamicCast<T1, T>(t.mPtr);
+		mBase = (CSharedBase<T> *)t.mBase;
+
+		t.mPtr = nullptr;
 		t.mBase = nullptr;
+
+		CopyShared<T1>();
+
+		SPTR_DEBUG_EXIT(SPTR_HEAD() SPTR_PTR " =(&&) " SPTR_HEAD(" &&") SPTR_PTR,
+						TYPE_NAME(T), this, TYPE_NAME(T1), &t);
 	} else {
-		Release();
+		SPTR_DEBUG(SPTR_HEAD() SPTR_PTR " =(&&) " SPTR_HEAD(" &&") SPTR_PTR " empty",
+				   TYPE_NAME(T), this, TYPE_NAME(T1), &t);
 	}
 
-	SPTR_DEBUG("--[CSharedPtr<%s>(%p)] = CSharedPtr<%s> &&",
-			   TYPE_NAME(T), this, TYPE_NAME(T1));
 	return *this;
 }
 
@@ -662,13 +659,14 @@ template <class T1,
 		 DECLARE_ENABLE_IF(SPTR_CAN_CONVERT(T, T1 &&))>
 inline CSharedPtr<T> &CSharedPtr<T>::operator = (T1 &&t1)
 {
-	SPTR_DEBUG("++[CSharedPtr<%s>(%p)]: = %s (overload)",
-			   TYPE_NAME(T), this, TYPE_NAME(T1));
+	SHARED_PTR_CHECK();
+	SPTR_DEBUG_ENTRY(SPTR_HEAD() SPTR_PTR " =(c) " SPTR_TYPE() SPTR_PTR,
+					 TYPE_NAME(T), this, TYPE_NAME(T1), &t1);
 
 	operator =(CSharedPtr<T>(std::forward<decltype(t1)>(t1)));
 
-	SPTR_DEBUG("--[CSharedPtr<%s>(%p)]: = %s (overload)",
-			   TYPE_NAME(T), this, TYPE_NAME(T1));
+	SPTR_DEBUG_EXIT(SPTR_HEAD() SPTR_PTR " =(c) " SPTR_TYPE() SPTR_PTR,
+					TYPE_NAME(T), this, TYPE_NAME(T1), &t1);
 
 	return *this;
 }
@@ -681,17 +679,20 @@ template <class T1,
 		 DECLARE_ENABLE_IF(has_member_operator_equal<T, T1 &&>)>
 inline CSharedPtr<T> &CSharedPtr<T>::operator = (T1 &&t1)
 {
-	SPTR_DEBUG("++[CSharedPtr<%s>(%p)]: = %s (overload)",
-			   TYPE_NAME(T), this, TYPE_NAME(T1));
+	SHARED_PTR_CHECK();
+	SPTR_DEBUG_ENTRY(SPTR_HEAD() SPTR_PTR " =(o) " SPTR_TYPE() SPTR_PTR,
+					 TYPE_NAME(T), this, TYPE_NAME(T1), &t1);
 
-	if (nullptr != mBase) {
-		mBase->mPtr->operator =(std::forward<decltype(t1)>(t1));
+	if (nullptr != mBase && nullptr != mPtr) {
+		mPtr->operator =(std::forward<decltype(t1)>(t1));
 	} else {
+		SPTR_ERROR(SPTR_HEAD() SPTR_PTR " =(o)", TYPE_NAME(T), this);
+		Dump();
 		throw ES("Cannot assign to a nullptr");
 	}
 
-	SPTR_DEBUG("--[CSharedPtr<%s>(%p)]: = %s (overload)",
-			   TYPE_NAME(T), this, TYPE_NAME(T1));
+	SPTR_DEBUG_EXIT(SPTR_HEAD() SPTR_PTR " =(o) " SPTR_TYPE() SPTR_PTR,
+					TYPE_NAME(T), this, TYPE_NAME(T1), &t1);
 
 	return *this;
 }
@@ -702,13 +703,14 @@ inline bool CSharedPtr<T>::operator == (std::nullptr_t) const
 {
 	bool ret;
 
-	SPTR_DEBUG("++[CSharedPtr<%s>(%p)] == [nullptr_t]",
-			   TYPE_NAME(T), this);
+	SHARED_PTR_CHECK();
+	SPTR_DEBUG_ENTRY(SPTR_HEAD() SPTR_PTR " ==(N)",
+					 TYPE_NAME(T), this);
 
 	ret = (nullptr == mBase);
 
-	SPTR_DEBUG("--[CSharedPtr<%s>(%p)] == [nullptr_t], result: %d",
-			   TYPE_NAME(T), this, ret);
+	SPTR_DEBUG_EXIT(SPTR_HEAD() SPTR_PTR " ==(N), result: %d",
+					TYPE_NAME(T), this, ret);
 
 	return ret;
 }
@@ -722,17 +724,19 @@ inline bool CSharedPtr<T>::operator == (T1 &&t1) const
 {
 	bool ret;
 
-	SPTR_DEBUG("++[CSharedPtr<%s>(%p)] == [%s(%p)]",
-			   TYPE_NAME(T), this, TYPE_NAME(T1), &t1);
+	SHARED_PTR_CHECK();
+	SPTR_DEBUG_ENTRY(SPTR_HEAD() SPTR_PTR " ==(&) " SPTR_HEAD() SPTR_PTR,
+					 TYPE_NAME(T), this, TYPE_NAME(T1), &t1);
 
 	if (nullptr != mBase) {
-		ret = (mBase->mPtr->operator == (std::forward<decltype(t1)>(t1)));
+		ret = (mPtr->operator == (std::forward<decltype(t1)>(t1)));
 	} else {
 		ret = false;
 	}
 
-	SPTR_DEBUG("--[CSharedPtr<%s>(%p)] == [%s(%p)], result: %d",
-			   TYPE_NAME(T), this, TYPE_NAME(T1), &t1, ret);
+	SPTR_DEBUG_EXIT(SPTR_HEAD() SPTR_PTR " ==(&) "
+					SPTR_HEAD() SPTR_PTR "result: %d",
+					TYPE_NAME(T), this, TYPE_NAME(T1), &t1, ret);
 
 	return ret;
 }
@@ -749,18 +753,20 @@ inline bool CSharedPtr<T>::operator == (T1 &&t1) const
 {
 	bool ret;
 
-	SPTR_DEBUG("++[CSharedPtr<%s>(%p)] == [%s(%p)]",
-			   TYPE_NAME(T), this, TYPE_NAME(T1), &t1);
+	SHARED_PTR_CHECK();
+	SPTR_DEBUG_ENTRY(SPTR_HEAD() SPTR_PTR " ==(c) " SPTR_HEAD() SPTR_PTR,
+					 TYPE_NAME(T), this, TYPE_NAME(T1), &t1);
 
 	if (nullptr != mBase) {
-		ret = (mBase->mPtr->operator == (
+		ret = (mPtr->operator == (
 				*(CSharedPtr<T>(std::forward<decltype(t1)>(t1)))));
 	} else {
 		ret = false;
 	}
 
-	SPTR_DEBUG("--[CSharedPtr<%s>(%p)] == [%s(%p)], result: %d",
-			   TYPE_NAME(T), this, TYPE_NAME(T1), &t1, ret);
+	SPTR_DEBUG_EXIT(SPTR_HEAD() SPTR_PTR " ==(c) "
+					SPTR_HEAD() SPTR_PTR "result: %d",
+					TYPE_NAME(T), this, TYPE_NAME(T1), &t1, ret);
 
 	return ret;
 }
@@ -774,17 +780,21 @@ inline bool CSharedPtr<T>::operator > (T1 &&t1) const
 {
 	bool ret;
 
-	SPTR_DEBUG("++[CSharedPtr<%s>(%p)] > [%s(%p)]",
-			   TYPE_NAME(T), this, TYPE_NAME(T1), &t1);
+	SHARED_PTR_CHECK();
+	SPTR_DEBUG_ENTRY(SPTR_HEAD() SPTR_PTR " >(o) " SPTR_HEAD() SPTR_PTR,
+					 TYPE_NAME(T), this, TYPE_NAME(T1), &t1);
 
-	if (nullptr != mBase) {
-		ret = (mBase->mPtr->operator > (std::forward<decltype(t1)>(t1)));
+	if (nullptr != mBase && nullptr != mPtr) {
+		ret = (mPtr->operator > (std::forward<decltype(t1)>(t1)));
 	} else {
+		SPTR_ERROR(SPTR_HEAD() SPTR_PTR " >(o)", TYPE_NAME(T), this);
+		Dump();
 		throw ES("Nullptr for operator >");
 	}
 
-	SPTR_DEBUG("--[CSharedPtr<%s>(%p)] > [%s(%p)], result: %d",
-			   TYPE_NAME(T), this, TYPE_NAME(T1), &t1, ret);
+	SPTR_DEBUG_EXIT(SPTR_HEAD() SPTR_PTR " >(o) "
+					SPTR_HEAD() SPTR_PTR "result: %d",
+					TYPE_NAME(T), this, TYPE_NAME(T1), &t1, ret);
 
 	return ret;
 }
@@ -801,18 +811,22 @@ inline bool CSharedPtr<T>::operator > (T1 &&t1) const
 {
 	bool ret;
 
-	SPTR_DEBUG("++[CSharedPtr<%s>(%p)] > [%s(%p)]",
-			   TYPE_NAME(T), this, TYPE_NAME(T1), &t1);
+	SHARED_PTR_CHECK();
+	SPTR_DEBUG_ENTRY(SPTR_HEAD() SPTR_PTR " >(c) " SPTR_HEAD() SPTR_PTR,
+					 TYPE_NAME(T), this, TYPE_NAME(T1), &t1);
 
-	if (nullptr != mBase) {
-		ret = (mBase->mPtr->operator > (
+	if (nullptr != mBase && nullptr != mPtr) {
+		ret = (mPtr->operator > (
 				*(CSharedPtr<T>(std::forward<decltype(t1)>(t1)))));
 	} else {
+		SPTR_ERROR(SPTR_HEAD() SPTR_PTR " >(c)", TYPE_NAME(T), this);
+		Dump();
 		throw ES("Nullptr for operator >");
 	}
 
-	SPTR_DEBUG("--[CSharedPtr<%s>(%p)] > [%s(%p)], result: %d",
-			   TYPE_NAME(T), this, TYPE_NAME(T1), &t1, ret);
+	SPTR_DEBUG_EXIT(SPTR_HEAD() SPTR_PTR " >(c) "
+					SPTR_HEAD() SPTR_PTR "result: %d",
+					TYPE_NAME(T), this, TYPE_NAME(T1), &t1, ret);
 
 	return ret;
 }
@@ -826,17 +840,21 @@ inline bool CSharedPtr<T>::operator < (T1 &&t1) const
 {
 	bool ret;
 
-	SPTR_DEBUG("++[CSharedPtr<%s>(%p)] < [%s(%p)]",
-			   TYPE_NAME(T), this, TYPE_NAME(T1), &t1);
+	SHARED_PTR_CHECK();
+	SPTR_DEBUG_ENTRY(SPTR_HEAD() SPTR_PTR " <(o) " SPTR_HEAD() SPTR_PTR,
+					 TYPE_NAME(T), this, TYPE_NAME(T1), &t1);
 
-	if (nullptr != mBase) {
-		ret = (mBase->mPtr->operator < (std::forward<decltype(t1)>(t1)));
+	if (nullptr != mBase && nullptr != mPtr) {
+		ret = (mPtr->operator < (std::forward<decltype(t1)>(t1)));
 	} else {
+		SPTR_ERROR(SPTR_HEAD() SPTR_PTR " <(o)", TYPE_NAME(T), this);
+		Dump();
 		throw ES("Nullptr for operator <");
 	}
 
-	SPTR_DEBUG("--[CSharedPtr<%s>(%p)] < [%s(%p)], result: %d",
-			   TYPE_NAME(T), this, TYPE_NAME(T1), &t1, ret);
+	SPTR_DEBUG_EXIT(SPTR_HEAD() SPTR_PTR " <(o) "
+					SPTR_HEAD() SPTR_PTR "result: %d",
+					TYPE_NAME(T), this, TYPE_NAME(T1), &t1, ret);
 
 	return ret;
 }
@@ -853,18 +871,22 @@ inline bool CSharedPtr<T>::operator < (T1 &&t1) const
 {
 	bool ret;
 
-	SPTR_DEBUG("++[CSharedPtr<%s>(%p)] < [%s(%p)]",
-			   TYPE_NAME(T), this, TYPE_NAME(T1), &t1);
+	SHARED_PTR_CHECK();
+	SPTR_DEBUG_ENTRY(SPTR_HEAD() SPTR_PTR " <(c) " SPTR_HEAD() SPTR_PTR,
+					 TYPE_NAME(T), this, TYPE_NAME(T1), &t1);
 
-	if (nullptr != mBase) {
-		ret = (mBase->mPtr->operator < (
+	if (nullptr != mBase && nullptr != mPtr) {
+		ret = (mPtr->operator < (
 				*(CSharedPtr<T>(std::forward<decltype(t1)>(t1)))));
 	} else {
+		SPTR_ERROR(SPTR_HEAD() SPTR_PTR " <(c)", TYPE_NAME(T), this);
+		Dump();
 		throw ES("Nullptr for operator <");
 	}
 
-	SPTR_DEBUG("--[CSharedPtr<%s>(%p)] < [%s(%p)], result: %d",
-			   TYPE_NAME(T), this, TYPE_NAME(T1), &t1, ret);
+	SPTR_DEBUG_EXIT(SPTR_HEAD() SPTR_PTR " <(c) "
+					SPTR_HEAD() SPTR_PTR "result: %d",
+					TYPE_NAME(T), this, TYPE_NAME(T1), &t1, ret);
 
 	return ret;
 }
@@ -873,7 +895,8 @@ inline bool CSharedPtr<T>::operator < (T1 &&t1) const
 template <class T>
 inline void CSharedPtr<T>::operator += (std::nullptr_t) const
 {
-	SPTR_DEBUG("++[CSharedPtr<%s>(%p)] += [nullptr_t]", TYPE_NAME(T), this);
+	SHARED_PTR_CHECK();
+	SPTR_DEBUG(SPTR_HEAD() SPTR_PTR " +=(N)", TYPE_NAME(T), this);
 }
 
 /* T += T1 (overloaded) */
@@ -883,17 +906,20 @@ template <class T1,
 		 DECLARE_ENABLE_IF(has_member_operator_add_equal<T, T1 &&>)>
 inline void CSharedPtr<T>::operator += (T1 &&t1) const
 {
-	SPTR_DEBUG("++[CSharedPtr<%s>(%p)] == [%s(%p)]",
-			   TYPE_NAME(T), this, TYPE_NAME(T1), &t1);
+	SHARED_PTR_CHECK();
+	SPTR_DEBUG_ENTRY(SPTR_HEAD() SPTR_PTR " +=(o) " SPTR_HEAD() SPTR_PTR,
+					 TYPE_NAME(T), this, TYPE_NAME(T1), &t1);
 
-	if (nullptr != mBase) {
-		(mBase->mPtr->operator += (std::forward<decltype(t1)>(t1)));
+	if (nullptr != mBase && nullptr != mPtr) {
+		(mPtr->operator += (std::forward<decltype(t1)>(t1)));
 	} else {
+		SPTR_ERROR(SPTR_HEAD() SPTR_PTR " +=(o)", TYPE_NAME(T), this);
+		Dump();
 		throw ES("Nullptr for operator +=");
 	}
 
-	SPTR_DEBUG("==[CSharedPtr<%s>(%p)] += [%s(%p)]",
-			   TYPE_NAME(T), this, TYPE_NAME(T1), &t1);
+	SPTR_DEBUG_EXIT(SPTR_HEAD() SPTR_PTR " +=(o) " SPTR_HEAD() SPTR_PTR,
+					TYPE_NAME(T), this, TYPE_NAME(T1), &t1);
 }
 
 /* T += T1 (construct) */
@@ -906,24 +932,28 @@ template <class T1,
 		 DECLARE_ENABLE_IF(has_member_operator_add_equal<K, K &&>)>
 inline void CSharedPtr<T>::operator += (T1 &&t1) const
 {
-	SPTR_DEBUG("++[CSharedPtr<%s>(%p)] += [%s(%p)]",
-			   TYPE_NAME(T), this, TYPE_NAME(T1), &t1);
+	SHARED_PTR_CHECK();
+	SPTR_DEBUG_ENTRY(SPTR_HEAD() SPTR_PTR " +=(c) " SPTR_HEAD() SPTR_PTR,
+					 TYPE_NAME(T), this, TYPE_NAME(T1), &t1);
 
-	if (nullptr != mBase) {
-		(mBase->mPtr->operator += (*(CSharedPtr<T>(std::forward<decltype(t1)>(t1)))));
+	if (nullptr != mBase && nullptr != mPtr) {
+		(mPtr->operator += (*(CSharedPtr<T>(std::forward<decltype(t1)>(t1)))));
 	} else {
+		SPTR_ERROR(SPTR_HEAD() SPTR_PTR " +=(c)", TYPE_NAME(T), this);
+		Dump();
 		throw ES("Nullptr for operator +=");
 	}
 
-	SPTR_DEBUG("--[CSharedPtr<%s>(%p)] += [%s(%p)]",
-			   TYPE_NAME(T), this, TYPE_NAME(T1), &t1);
+	SPTR_DEBUG_EXIT(SPTR_HEAD() SPTR_PTR " +=(c) " SPTR_HEAD() SPTR_PTR,
+					TYPE_NAME(T), this, TYPE_NAME(T1), &t1);
 }
 
 /* CSharedPtr<T> -= nullptr_t */
 template <class T>
 inline void CSharedPtr<T>::operator -= (std::nullptr_t) const
 {
-	SPTR_DEBUG("++[CSharedPtr<%s>(%p)] -= [nullptr_t]", TYPE_NAME(T), this);
+	SHARED_PTR_CHECK();
+	SPTR_DEBUG(SPTR_HEAD() SPTR_PTR " -=(N)", TYPE_NAME(T), this);
 }
 
 /* T -= T1 (overloaded) */
@@ -933,17 +963,20 @@ template <class T1,
 		 DECLARE_ENABLE_IF(has_member_operator_sub_equal<T, T1 &&>)>
 inline void CSharedPtr<T>::operator -= (T1 &&t1) const
 {
-	SPTR_DEBUG("++[CSharedPtr<%s>(%p)] == [%s(%p)]",
-			   TYPE_NAME(T), this, TYPE_NAME(T1), &t1);
+	SHARED_PTR_CHECK();
+	SPTR_DEBUG_ENTRY(SPTR_HEAD() SPTR_PTR " -=(o) " SPTR_HEAD() SPTR_PTR,
+					 TYPE_NAME(T), this, TYPE_NAME(T1), &t1);
 
-	if (nullptr != mBase) {
-		(mBase->mPtr->operator -= (std::forward<decltype(t1)>(t1)));
+	if (nullptr != mBase && nullptr != mPtr) {
+		(mPtr->operator -= (std::forward<decltype(t1)>(t1)));
 	} else {
+		SPTR_ERROR(SPTR_HEAD() SPTR_PTR " -=(o)", TYPE_NAME(T), this);
+		Dump();
 		throw ES("Nullptr for operator -=");
 	}
 
-	SPTR_DEBUG("==[CSharedPtr<%s>(%p)] -= [%s(%p)]",
-			   TYPE_NAME(T), this, TYPE_NAME(T1), &t1);
+	SPTR_DEBUG_EXIT(SPTR_HEAD() SPTR_PTR " -=(o) " SPTR_HEAD() SPTR_PTR,
+					TYPE_NAME(T), this, TYPE_NAME(T1), &t1);
 }
 
 /* T -= T1 (construct) */
@@ -956,17 +989,20 @@ template <class T1,
 		 DECLARE_ENABLE_IF(has_member_operator_sub_equal<K, K &&>)>
 inline void CSharedPtr<T>::operator -= (T1 &&t1) const
 {
-	SPTR_DEBUG("++[CSharedPtr<%s>(%p)] -= [%s(%p)]",
-			   TYPE_NAME(T), this, TYPE_NAME(T1), &t1);
+	SHARED_PTR_CHECK();
+	SPTR_DEBUG_ENTRY(SPTR_HEAD() SPTR_PTR " -=(c) " SPTR_HEAD() SPTR_PTR,
+					 TYPE_NAME(T), this, TYPE_NAME(T1), &t1);
 
-	if (nullptr != mBase) {
-		(mBase->mPtr->operator -= (*(CSharedPtr<T>(std::forward<decltype(t1)>(t1)))));
+	if (nullptr != mBase && nullptr != mPtr) {
+		(mPtr->operator -= (*(CSharedPtr<T>(std::forward<decltype(t1)>(t1)))));
 	} else {
+		SPTR_ERROR(SPTR_HEAD() SPTR_PTR " -=(c)", TYPE_NAME(T), this);
+		Dump();
 		throw ES("Nullptr for operator -=");
 	}
 
-	SPTR_DEBUG("--[CSharedPtr<%s>(%p)] -= [%s(%p)]",
-			   TYPE_NAME(T), this, TYPE_NAME(T1), &t1);
+	SPTR_DEBUG_EXIT(SPTR_HEAD() SPTR_PTR " -=(c) " SPTR_HEAD() SPTR_PTR,
+					TYPE_NAME(T), this, TYPE_NAME(T1), &t1);
 }
 
 template <class T>
@@ -975,21 +1011,26 @@ template <class T1,
 		 DECLARE_ENABLE_IF(has_member_operator_square_brackets<T, T1 &&>)>
 inline decltype(auto) CSharedPtr<T>::operator [](T1 &&t1) const
 {
-	SPTR_DEBUG("++[CSharedPtr<%s>(%p)]: []", TYPE_NAME(T), this);
+	SHARED_PTR_CHECK();
+	SPTR_DEBUG_ENTRY(SPTR_HEAD() SPTR_PTR " []", TYPE_NAME(T), this);
 
-	if (nullptr != mBase) {
-		return (*(mBase->mPtr))[std::forward<decltype(t1)>(t1)];
+	if (nullptr != mBase && nullptr != mPtr) {
+		return (*mPtr)[std::forward<decltype(t1)>(t1)];
 	} else {
+		SPTR_ERROR(SPTR_HEAD() SPTR_PTR " []", TYPE_NAME(T), this);
+		Dump();
 		throw ES("Illegal NULL[]");
 	}
 
-	SPTR_DEBUG("--[CSharedPtr<%s>(%p)]: []", TYPE_NAME(T), this);
+	SPTR_DEBUG_EXIT(SPTR_HEAD() SPTR_PTR " []", TYPE_NAME(T), this);
 }
 
 template <class T>
 inline CSharedPtr<T>::operator bool_t() const
 {
-	return nullptr != mBase ?  &CSharedPtr<T>::bool_fn : 0;
+	SHARED_PTR_CHECK();
+	return (nullptr != mBase && nullptr != mPtr) ?
+		&CSharedPtr<T>::bool_fn : 0;
 }
 
 template <class T>
@@ -997,11 +1038,14 @@ template <class... Tn,
 		 DECLARE_ENABLE_IF(has_operator_func<T, Tn && ...>)>
 inline decltype(auto) CSharedPtr<T>::operator () (Tn && ... tn)
 {
-	if (nullptr == mBase) {
+	SHARED_PTR_CHECK();
+	if (nullptr == mBase || nullptr == mPtr) {
+		SPTR_ERROR(SPTR_HEAD() SPTR_PTR " ()", TYPE_NAME(T), this);
+		Dump();
 		throw ES("Empty CSharedPtr is used");
 	}
 
-	return (*(mBase->mPtr))(std::forward<decltype(tn)>(tn)...);
+	return (*(mPtr))(std::forward<decltype(tn)>(tn)...);
 }
 
 template <class T>
@@ -1009,64 +1053,81 @@ template <class... Tn,
 		 DECLARE_ENABLE_IF(has_operator_func<T, Tn && ...>)>
 inline decltype(auto) CSharedPtr<T>::operator () (Tn && ... tn) const
 {
-	if (nullptr == mBase) {
+	SHARED_PTR_CHECK();
+	if (nullptr == mBase || nullptr == mPtr) {
+		SPTR_ERROR(SPTR_HEAD() SPTR_PTR " ()(c)", TYPE_NAME(T), this);
+		Dump();
 		throw ES("Empty CSharedPtr is used");
 	}
 
-	return (*((const T*)(mBase->mPtr)))(std::forward<decltype(tn)>(tn)...);
+	return (*((const T*)(mPtr)))(std::forward<decltype(tn)>(tn)...);
 }
 
 template <class T>
 inline T *CSharedPtr<T>::operator -> (void)
 {
-	if (nullptr == mBase) {
+	SHARED_PTR_CHECK();
+	if (nullptr == mBase || nullptr == mPtr) {
+		SPTR_ERROR(SPTR_HEAD() SPTR_PTR " ->", TYPE_NAME(T), this);
+		Dump();
 		throw ES("Empty CSharedPtr is used");
 	}
 
-	return mBase->mPtr;
+	return mPtr;
 }
 
 template <class T>
 inline T *CSharedPtr<T>::operator -> (void) const
 {
-	if (nullptr == mBase) {
+	SHARED_PTR_CHECK();
+	if (nullptr == mBase || nullptr == mPtr) {
+		SPTR_ERROR(SPTR_HEAD() SPTR_PTR " ->(c)", TYPE_NAME(T), this);
+		Dump();
 		throw ES("Empty CSharedPtr is used");
 	}
 
-	return mBase->mPtr;
+	return mPtr;
 }
 
 template <class T>
 inline T &CSharedPtr<T>::operator * (void) const
 {
-	if (nullptr == mBase) {
+	SHARED_PTR_CHECK();
+	if (nullptr == mBase || nullptr == mPtr) {
+		SPTR_ERROR(SPTR_HEAD() SPTR_PTR " *", TYPE_NAME(T), this);
+		Dump();
 		throw ES("Empty CSharedPtr is used");
 	}
 
-	return *(mBase->mPtr);
+	return *mPtr;
 }
 
 template <class T>
 inline void CSharedPtr<T>::Release(void)
 {
-	SPTR_DEBUG("++[CSharedPtr<%s>(%p)]: release", TYPE_NAME(T), this);
+	SHARED_PTR_CHECK();
+	SPTR_DEBUG_ENTRY(SPTR_HEAD() SPTR_PTR " release", TYPE_NAME(T), this);
 
 	if (nullptr != mBase) {
 		mBase->ReleaseRef();
 		mBase = nullptr;
+		mPtr = nullptr;
 	}
 
-	SPTR_DEBUG("--[CSharedPtr<%s>(%p)]: release", TYPE_NAME(T), this);
+	SPTR_DEBUG_EXIT(SPTR_HEAD() SPTR_PTR " release", TYPE_NAME(T), this);
 }
 
 template <class T>
 inline T *CSharedPtr<T>::Get(void) const
 {
-	if (nullptr == mBase) {
+	SHARED_PTR_CHECK();
+	if (nullptr == mBase || nullptr == mPtr) {
+		SPTR_ERROR(SPTR_HEAD() SPTR_PTR " Get", TYPE_NAME(T), this);
+		Dump();
 		throw ES("Empty CSharedPtr is used");
 	}
 
-	return mBase->mPtr;
+	return mPtr;
 }
 
 template <class T>
@@ -1075,45 +1136,49 @@ template <class T1,
 		 DECLARE_ENABLE_IF(MAYBE_ASSIGNABLE(T, T1))>
 inline void CSharedPtr<T>::Swap(CSharedPtr<T1> &t1)
 {
-	SPTR_DEBUG("++[CSharedPtr<%s>(%p)]: swap to CSharedPtr<%s>(%p)",
-			   TYPE_NAME(T), this, TYPE_NAME(T1), t1.Get());
+	SHARED_PTR_CHECK();
+	SPTR_DEBUG_ENTRY(SPTR_HEAD() SPTR_PTR " swap to " SPTR_HEAD() SPTR_PTR,
+					 TYPE_NAME(T), this, TYPE_NAME(T1), t1.Get());
 
-	CSharedBase<T1> *tmp = nullptr;
+	T1 *ptr = nullptr;
+	CSharedBase<T1> *base = nullptr;
 
 	/* t1 != nullptr */
 	if (t1) {
-		/* Makes sure target can be casted to me. */
-		DynamicCast<T1, T>(t1.Get());
-		tmp = t1.mBase;
+		ptr = t1.mPtr;
+		base = t1.mBase;
+		t1.mBase = nullptr;
+		t1.mPtr = nullptr;
 	}
 
 	if (nullptr != mBase) {
-		/* Makes sure I can be casted to the target. */
-		DynamicCast<T, T1>(mBase->mPtr);
-
+		t1.mPtr = DynamicCast<T, T1>(mPtr);
 		t1.mBase = (CSharedBase<T1> *)mBase;
-		t1.SetShared();
-	} else {
-		t1.mBase = nullptr;
-		t1.SetShared();
+		t1.template CopyShared<T>();
+
+		mBase = nullptr;
+		mPtr = nullptr;
 	}
 
-	mBase = (CSharedBase<T> *)tmp;
-	SetShared();
+	mPtr = DynamicCast<T1, T>(ptr);
+	mBase = (CSharedBase<T> *)base;
+	CopyShared<T1>();
 
-	SPTR_DEBUG("--[CSharedPtr<%s>(%p)]: swap to CSharedPtr<%s>(%p)",
-			   TYPE_NAME(T), this, TYPE_NAME(T1), t1.Get());
+	SPTR_DEBUG_EXIT(SPTR_HEAD() SPTR_PTR " swap to " SPTR_HEAD() SPTR_PTR,
+					TYPE_NAME(T), this, TYPE_NAME(T1), t1.Get());
 }
 
 template <class T>
 inline uint32_t CSharedPtr<T>::GetRef(void) const
 {
+	SHARED_PTR_CHECK();
 	return (nullptr == mBase) ? 0 : mBase->mRef;
 }
 
 template <class T>
 inline uint32_t CSharedPtr<T>::GetWeakRef(void) const
 {
+	SHARED_PTR_CHECK();
 	return (nullptr == mBase) ? 0 : mBase->mWeakRef;
 }
 
@@ -1125,14 +1190,17 @@ template <class T1,
 		 DECLARE_ENABLE_IF(SPTR_CAN_IMPLICIT_CONVERT(T1, T))>
 inline T1 CSharedPtr<T>::Convert(void)
 {
-	SPTR_DEBUG("[CSharedPtr<%s>(%p)]: Convert to %s",
+	SHARED_PTR_CHECK();
+	SPTR_DEBUG(SPTR_HEAD() SPTR_PTR " Convert to %s",
 			   TYPE_NAME(T), this, TYPE_NAME(T1));
 
-	if (nullptr == mBase) {
+	if (nullptr == mBase || nullptr == mPtr) {
+		SPTR_ERROR(SPTR_HEAD() SPTR_PTR " Convert", TYPE_NAME(T), this);
+		Dump();
 		throw ES("Cannot convert from nullptr");
 	}
 
-	return mBase->mPtr->template Convert<T1>();
+	return mPtr->template Convert<T1>();
 }
 
 /* Convert(const) */
@@ -1143,14 +1211,17 @@ template <class T1,
 		 DECLARE_ENABLE_IF(SPTR_CAN_IMPLICIT_CONVERT(T1, T))>
 inline T1 CSharedPtr<T>::Convert(void) const
 {
-	SPTR_DEBUG("[CSharedPtr<%s>(%p)]: Convert to const %s",
+	SHARED_PTR_CHECK();
+	SPTR_DEBUG(SPTR_HEAD() SPTR_PTR " Convert to const %s",
 			   TYPE_NAME(T), this, TYPE_NAME(T1));
 
-	if (nullptr == mBase) {
+	if (nullptr == mBase || nullptr == mPtr) {
+		SPTR_ERROR(SPTR_HEAD() SPTR_PTR " Convert(c)", TYPE_NAME(T), this);
+		Dump();
 		throw ES("Cannot convert from nullptr");
 	}
 
-	return mBase->mPtr->template Convert<T1>();
+	return mPtr->template Convert<T1>();
 }
 
 /* Implicit convert */
@@ -1161,14 +1232,17 @@ template <class T1,
 		 DECLARE_ENABLE_IF(SPTR_CAN_IMPLICIT_CONVERT(T1, T))>
 inline CSharedPtr<T>::operator T1()
 {
-	SPTR_DEBUG("[CSharedPtr<%s>(%p)]: Implicit convert to %s",
+	SHARED_PTR_CHECK();
+	SPTR_DEBUG(SPTR_HEAD() SPTR_PTR " Implicit convert to %s",
 			   TYPE_NAME(T), this, TYPE_NAME(T1));
 
-	if (nullptr == mBase) {
+	if (nullptr == mBase || nullptr == mPtr) {
+		SPTR_ERROR(SPTR_HEAD() SPTR_PTR " implicit convert", TYPE_NAME(T), this);
+		Dump();
 		throw ES("Cannot implicit convert from nullptr");
 	}
 
-	return mBase->mPtr->template Convert<T1>();
+	return mPtr->template Convert<T1>();
 }
 
 /* Implicit convert(const) */
@@ -1179,28 +1253,31 @@ template <class T1,
 		 DECLARE_ENABLE_IF(SPTR_CAN_IMPLICIT_CONVERT(T1, T))>
 inline CSharedPtr<T>::operator T1() const
 {
-	SPTR_DEBUG("[CSharedPtr<%s>(%p)]: Implicit convert to const %s",
+	SHARED_PTR_CHECK();
+	SPTR_DEBUG(SPTR_HEAD() SPTR_PTR " Implicit convert to const %s",
 			   TYPE_NAME(T), this, TYPE_NAME(T1));
 
-	if (nullptr == mBase) {
+	if (nullptr == mBase || nullptr == mPtr) {
+		SPTR_ERROR(SPTR_HEAD() SPTR_PTR " implicit convert(c)", TYPE_NAME(T), this);
+		Dump();
 		throw ES("Cannot implicit convert from nullptr");
 	}
 
-	return mBase->mPtr->template Convert<T1>();
+	return mPtr->template Convert<T1>();
 }
 
 template <class T>
 inline void CSharedPtr<T>::Dump(void) const
 {
-	SPTR_DEBUG("[CSharedPtr<%s>(%p)]: mBase: %p, mPtr: %p, ref: %u, wref: %u",
-			   TYPE_NAME(T), this, mBase, mBase ? Get() : nullptr,
-			   GetRef(), GetWeakRef());
+	SHARED_PTR_CHECK();
+	SPTR_DUMP("Addr: %p Base: %p Ptr: %p ref: %d wref: %d Type: %s",
+			  this, mBase, mPtr, GetRef(), GetWeakRef(), TYPE_NAME(T));
 }
 
 template <class T>
 void CSharedPtr<T>::DefaultDeleter(T *buf)
 {
-	SPTR_DEBUG("[CSharedPtr<%s>]: DefaultDeleter", TYPE_NAME(T));
+	SPTR_DEBUG(SPTR_HEAD() " DefaultDeleter", TYPE_NAME(T));
 
 	delete buf;
 }
@@ -1208,7 +1285,7 @@ void CSharedPtr<T>::DefaultDeleter(T *buf)
 template <class T>
 void CSharedPtr<T>::ArrayDeleter(T *buf)
 {
-	SPTR_DEBUG("[CSharedPtr<%s>]: ArrayDeleter", TYPE_NAME(T));
+	SPTR_DEBUG(SPTR_HEAD() " ArrayDeleter", TYPE_NAME(T));
 
 	delete [] buf;
 }
@@ -1216,27 +1293,51 @@ void CSharedPtr<T>::ArrayDeleter(T *buf)
 template <class T>
 void CSharedPtr<T>::NullDeleter(T *)
 {
-	SPTR_DEBUG("[CSharedPtr<%s>]: NullDeleter", TYPE_NAME(T));
+	SPTR_DEBUG(SPTR_HEAD() " NullDeleter", TYPE_NAME(T));
+}
+
+/* Replace the current base to the new one */
+template <class T>
+template <class T1>
+inline void CSharedPtr<T>::Replace(const CSharedPtr<T1> &ptr)
+{
+	SHARED_PTR_CHECK();
+	Release();
+
+	if (ptr) {
+		SPTR_DEBUG_ENTRY(SPTR_HEAD() SPTR_PTR " <== replace == " SPTR_HEAD() SPTR_PTR,
+						 TYPE_NAME(T), this, TYPE_NAME(T1), &ptr);
+
+		mPtr = DynamicCast<T1, T>(ptr.mPtr);
+		mBase = ptr.mBase->template AddRef<T>();
+		CopyShared<T1>();
+
+		SPTR_DEBUG_EXIT(SPTR_HEAD() SPTR_PTR " <== replace == " SPTR_HEAD() SPTR_PTR,
+						TYPE_NAME(T), this, TYPE_NAME(T1), &ptr);
+	} else {
+		SPTR_DEBUG(SPTR_HEAD() SPTR_PTR " <== replace == empty " SPTR_HEAD() SPTR_PTR,
+				   TYPE_NAME(T), this, TYPE_NAME(T1), &ptr);
+	}
 }
 
 template <class T>
-inline void CSharedPtr<T>::Replace(CSharedBase<T> *base)
+template <class T1,
+		 DECLARE_ENABLE_IF(std::is_same<T1, T>)>
+inline void CSharedPtr<T>::CopyShared(void)
 {
-	SPTR_DEBUG("++[CSharedPtr<%s>(%p)]: replace from CSharedBase<%s> *",
-			   TYPE_NAME(T), this, TYPE_NAME(T));
+	SHARED_PTR_CHECK();
+	SPTR_DEBUG(SPTR_HEAD() SPTR_PTR " CopyShared ignore", TYPE_NAME(T), this);
+}
 
-	if (nullptr != mBase) {
-		mBase->ReleaseRef();
-	}
-
-	mBase = base;
-
-	if (nullptr != mBase) {
-		SetShared();
-	}
-
-	SPTR_DEBUG("--[CSharedPtr<%s>(%p)]: replace from CSharedBase<%s> *",
-			   TYPE_NAME(T), this, TYPE_NAME(T));
+template <class T>
+template <class T1,
+		 DECLARE_ENABLE_IF(!std::is_same<T1, T>)>
+inline void CSharedPtr<T>::CopyShared(void)
+{
+	SHARED_PTR_CHECK();
+	SPTR_DEBUG(SPTR_HEAD() SPTR_PTR " CopyShared from " SPTR_HEAD(),
+			   TYPE_NAME(T), this, TYPE_NAME(T1));
+	SetShared();
 }
 
 template <class T>
@@ -1244,19 +1345,18 @@ template <class K,
 		 DECLARE_ENABLE_IF(HAS_ENABLE_SHARED_PTR(K))>
 inline void CSharedPtr<T>::SetShared(void)
 {
-	SPTR_DEBUG("++[CSharedPtr<%s>(%p)]: SetShared",
-			   TYPE_NAME(T), this);
+	SHARED_PTR_CHECK();
+	SPTR_DEBUG_ENTRY(SPTR_HEAD() SPTR_PTR " SetShared", TYPE_NAME(T), this);
 
-	if (nullptr == mBase) {
+	if (nullptr == mBase || nullptr == mPtr) {
+		SPTR_ERROR(SPTR_HEAD() SPTR_PTR " SetShared", TYPE_NAME(T), this);
+		Dump();
 		throw ES("Set the shared base for empty CSharedPtr");
 	}
 
-	Dump();
-	mBase->mPtr->CEnableSharedPtr<REMOVE_CONST(T)>::SetSharedBase(*mBase);
-	Dump();
+	mPtr->CEnableSharedPtr<REMOVE_CONST(T)>::SetShared(*this);
 
-	SPTR_DEBUG("--[CSharedPtr<%s>(%p)]: SetShared",
-			   TYPE_NAME(T), this);
+	SPTR_DEBUG_EXIT(SPTR_HEAD() SPTR_PTR " SetShared", TYPE_NAME(T), this);
 }
 
 template <class T>
@@ -1264,8 +1364,8 @@ template <class K,
 		 DECLARE_ENABLE_IF(!HAS_ENABLE_SHARED_PTR(K))>
 inline void CSharedPtr<T>::SetShared(void)
 {
-	SPTR_DEBUG("[CSharedPtr<%s>(%p)]: SetShared ignore",
-			   TYPE_NAME(T), this);
+	SHARED_PTR_CHECK();
+	SPTR_DEBUG(SPTR_HEAD() SPTR_PTR " SetShared ignore", TYPE_NAME(T), this);
 }
 
 /* Used only for meta programming. */
@@ -1275,8 +1375,179 @@ inline void CSharedPtr<T>::ImSharedPtr(void)
 	throw ES("ImSharedPtr should not be called");
 }
 
-#include "SharedToken.hpp"
+/* Create SharedBase. */
+/* The user create the pointer and provide the deleter. */
+template <class T>
+template <class T1,
+		 class DeleterFn,
+		 DECLARE_ENABLE_IF(MAYBE_ASSIGNABLE(T, T1)),
+		 DECLARE_ENABLE_IF(IS_FUNC_POINTER(DeleterFn))>
+inline CSharedPtr<T> CSharedPtr<T>::CreateSharedBase(T1 *ptr, DeleterFn &fn)
+{
+
+	if (nullptr != ptr) {
+		SPTR_DEBUG_ENTRY(SPTR_HEAD() " CreateSharedBase ptr: " SPTR_PTR,
+						 TYPE_NAME(T), ptr);
+
+		typedef CSharedFuncPointerDeleter<T> CSharedDeleter;
+
+		DEFINE_POOL_BASE(Pool, sizeof(CSharedBase<T>) + sizeof(CSharedDeleter));
+		char *buf = Pool::Alloc();
+
+		try {
+			T *_ptr = DynamicCast<T1, T>(ptr);
+
+			char *tmp = buf + sizeof(CSharedBase<T>);
+			CSharedDeleter *deleter = new (tmp) CSharedDeleter(_ptr, fn);
+
+			auto base = new (buf) CSharedBase<T>(
+					Pool::Release, (void *)deleter, CSharedDeleter::Delete);
+
+			CSharedPtr<T> ret(_ptr, base);
+
+			SPTR_DEBUG_EXIT(SPTR_HEAD() " CreateSharedBase ptr: " SPTR_PTR
+							" base: " SPTR_PTR,
+							TYPE_NAME(T), ptr, &ret);
+
+			return ret;
+		} catch (const IException *e) {
+			Pool::Release(buf);
+			SPTR_ERROR(SPTR_HEAD() " CreateSharedBase", TYPE_NAME(T));
+			throw e;
+		}
+
+	} else {
+		SPTR_DEBUG(SPTR_HEAD() " CreateSharedBase(N)",
+				   TYPE_NAME(T));
+
+		CSharedPtr<T> ret(nullptr);
+
+		return ret;
+	}
+}
+
+template <class T>
+template <class T1,
+		 class DeleterFn,
+		 DECLARE_ENABLE_IF(MAYBE_ASSIGNABLE(T, T1)),
+		 DECLARE_ENABLE_IF(!IS_FUNC_POINTER(DeleterFn))>
+inline CSharedPtr<T> CSharedPtr<T>::CreateSharedBase(T1 *ptr, DeleterFn &fn)
+{
+
+	if (nullptr != ptr) {
+		SPTR_DEBUG_ENTRY(SPTR_HEAD() " CreateSharedBase ptr: " SPTR_PTR,
+						 TYPE_NAME(T), ptr);
+
+		typedef CSharedLambdaDeleter<T, DeleterFn> CSharedDeleter;
+
+		DEFINE_POOL_BASE(Pool, sizeof(CSharedBase<T>) + sizeof(CSharedDeleter));
+		char *buf = Pool::Alloc();
+
+		try {
+			T *_ptr = DynamicCast<T1, T>(ptr);
+
+			char *tmp = buf + sizeof(CSharedBase<T>);
+			CSharedDeleter *deleter = new (tmp) CSharedDeleter(_ptr, fn);
+
+			auto base = new (buf) CSharedBase<T>(
+					Pool::Release, (void *)deleter, CSharedDeleter::Delete);
+
+			CSharedPtr<T> ret(_ptr, base);
+
+			SPTR_DEBUG_EXIT(SPTR_HEAD() " CreateSharedBase ptr: " SPTR_PTR
+							" base: " SPTR_PTR,
+							TYPE_NAME(T), ptr, &ret);
+
+			return ret;
+		} catch (const IException *e) {
+			Pool::Release(buf);
+			SPTR_ERROR(SPTR_HEAD() " CreateSharedBase", TYPE_NAME(T));
+			throw e;
+		}
+
+	} else {
+		SPTR_DEBUG(SPTR_HEAD() " CreateSharedBase(N)",
+				   TYPE_NAME(T));
+
+		CSharedPtr<T> ret(nullptr);
+
+		return ret;
+	}
+}
+
+/* Copy construct a SharedPtr from a valid input */
+template <class T>
+template <class T1,
+		 DECLARE_DEBUG_TEMPLATE,
+		 DECLARE_ENABLE_IF(MAYBE_ASSIGNABLE(T, T1))>
+inline CSharedPtr<T> CSharedPtr<T>::CopySharedPtr(const CSharedPtr<T1> &t1)
+{
+	if (t1) {
+		SPTR_DEBUG_ENTRY(SPTR_HEAD() " <== copy == " SPTR_HEAD() SPTR_PTR,
+						 TYPE_NAME(T), TYPE_NAME(T1), &t1);
+		t1.Dump();
+
+		CSharedPtr<T> ret(DynamicCast<T1, T>(t1.mPtr),
+						  t1.mBase->template AddRef<T>());
+
+		ret.Dump();
+		SPTR_DEBUG_EXIT(SPTR_HEAD() " <== copy == " SPTR_HEAD() SPTR_PTR,
+						TYPE_NAME(T), TYPE_NAME(T1), &t1);
+
+		return ret;
+
+	} else {
+		SPTR_DEBUG_ENTRY(SPTR_HEAD() " <== copy(N) == " SPTR_HEAD() SPTR_PTR,
+						 TYPE_NAME(T), TYPE_NAME(T1), &t1);
+
+		CSharedPtr<T> ret(nullptr);
+
+		return ret;
+	}
+}
+
+template <class T, class... Args>
+inline CSharedPtr<T> MakeShared(Args && ... args)
+{
+	SPTR_DEBUG_ENTRY(SPTR_HEAD() " MakeShared. nParam: " SPTR_LONG,
+					 TYPE_NAME(T), sizeof...(args));
+	SPTR_VARIADIC_PRINT("\t" SPTR_TYPE() "\n", TYPE_NAME(decltype(args)));
+
+	typedef CSharedDefaultDeleter<T> CSharedDeleter;
+
+	DEFINE_POOL_BASE(Pool, sizeof(CSharedBase<T>) + sizeof(T) + sizeof(CSharedDeleter));
+	char *buf = Pool::Alloc();
+
+	if (nullptr == buf) {
+		SPTR_ERROR(SPTR_HEAD() " MakeShared", TYPE_NAME(T));
+		throw ES("MakeShared failed. Out of memory");
+	}
+
+	try {
+		char *tmp = buf + sizeof(CSharedBase<T>);
+		T *ptr = new (tmp) T(std::forward<decltype(args)>(args)...);
+
+		tmp += sizeof(T);
+		CSharedDeleter *deleter = new (tmp) CSharedDeleter(ptr);
+
+		CSharedBase<T> *base = new (buf) CSharedBase<T>(
+				Pool::Release, (void *)deleter, CSharedDeleter::Delete);
+
+		CSharedPtr<T> ret(ptr, base);
+
+		SPTR_DEBUG_EXIT(SPTR_HEAD() " MakeShared. nParam: " SPTR_LONG,
+						TYPE_NAME(T), sizeof...(args));
+		return ret;
+
+	} catch (const IException *e) {
+		Pool::Release(buf);
+		SPTR_ERROR(SPTR_HEAD() " MakeShared", TYPE_NAME(T));
+		throw e;
+	}
+}
+
 #include "SharedPtrOverload.hpp"
+#include "SharedToken.hpp"
 
 #endif /* __SHARED_PTR_HPP__ */
 

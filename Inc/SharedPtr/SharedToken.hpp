@@ -23,21 +23,10 @@
 template <class T>
 class CSharedPtr;
 
-typedef OpsEnum TokenOps;
-
 /* CSharedToken<T> can be used as the pdata in C codes.
  * For example: void SetCallbackFn(SomeFn fn, void *pdata);
  *
- * The CSharedToken<T> can be used to construct CSharedPtr<T>:
- * 1. Moved to a CSharedPtr<T>.
- *    After being moved, the CSharedToken<T> cannot be used again.
- *    CSharedPtr<T> t(CSharedToken<T> *token, MOVE);
- *
- * 2. Copied to multiple CSharedPtr<T>.
- *    After being copied, the CSharedToken<T> can be used again.
- *    CSharedPtr<T> t(CSharedToken<T> *token, COPY);
- *
- * After being moved or copied, the CSharedToken<T> must be manually released:
+ * After being used, the CSharedToken<T> must be manually released:
  *    token->Release();
  *    token = nullptr;
  */
@@ -45,15 +34,16 @@ template <class T>
 class CSharedToken
 {
 	friend class CSharedPtr<T>;
+
 private:
-	inline CSharedToken(CSharedBase<T> *base);
+	inline static CSharedToken<T> *Create(const CSharedPtr<T> &ptr);
+
+	inline CSharedToken(const CSharedPtr<T> &ptr);
 
 public:
 	inline void Release(void);
 
 private:
-	DEFINE_POOL_BASE(Pool, sizeof(CSharedPtr<T>));
-
 	CSharedPtr<T> mPtr;
 };
 
@@ -62,8 +52,18 @@ private:
 #define __SHARED_TOKEN_IMPLEMENT_HPP__
 
 template <class T>
-inline CSharedToken<T>::CSharedToken(CSharedBase<T> *base) :
-	mPtr(base->AddRef())
+inline CSharedToken<T> *CSharedToken<T>::Create(const CSharedPtr<T> &ptr)
+{
+	DEFINE_POOL_BASE(Pool, sizeof(CSharedToken<T>));
+
+	char *buf = Pool::Alloc();
+
+	return new (buf) CSharedToken<T>(ptr);
+}
+
+template <class T>
+inline CSharedToken<T>::CSharedToken(const CSharedPtr<T> &ptr) :
+	mPtr(ptr)
 {
 	/* Does nothing */
 }
@@ -71,12 +71,14 @@ inline CSharedToken<T>::CSharedToken(CSharedBase<T> *base) :
 template <class T>
 inline void CSharedToken<T>::Release(void)
 {
-	SPTR_DEBUG("++[CSharedPtr<%s>(%p)]: token release", TYPE_NAME(T), this);
+	SPTR_DEBUG("++[CSharedToken<%s>(%p)]: token release", TYPE_NAME(T), this);
+
+	DEFINE_POOL_BASE(Pool, sizeof(CSharedToken<T>));
 
 	mPtr.Release();
 	Pool::Release((char *)this);
 
-	SPTR_DEBUG("--[CSharedPtr<%s>(%p)]: token release", TYPE_NAME(T), this);
+	SPTR_DEBUG("--[CSharedToken<%s>(%p)]: token release", TYPE_NAME(T), this);
 }
 
 #endif /* __SHARED_TOKEN_IMPLEMENT_HPP__ */
