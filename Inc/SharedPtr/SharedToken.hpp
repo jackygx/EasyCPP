@@ -54,7 +54,7 @@ private:
 template <class T>
 inline CSharedToken<T> *CSharedToken<T>::Create(const CSharedPtr<T> &ptr)
 {
-	DEFINE_POOL_BASE(Pool, sizeof(CSharedToken<T>));
+	DEFINE_POOL_BASE(Pool, sizeof(CSharedToken<T>), CSharedToken<T>);
 
 	char *buf = Pool::Alloc();
 
@@ -73,7 +73,7 @@ inline void CSharedToken<T>::Release(void)
 {
 	SPTR_DEBUG("++[CSharedToken<%s>(%p)]: token release", TYPE_NAME(T), this);
 
-	DEFINE_POOL_BASE(Pool, sizeof(CSharedToken<T>));
+	DEFINE_POOL_BASE(Pool, sizeof(CSharedToken<T>), CSharedToken<T>);
 
 	mPtr.Release();
 	Pool::Release((char *)this);

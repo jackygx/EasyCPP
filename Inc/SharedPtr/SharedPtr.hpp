@@ -1391,7 +1391,8 @@ inline CSharedPtr<T> CSharedPtr<T>::CreateSharedBase(T1 *ptr, DeleterFn &fn)
 
 		typedef CSharedFuncPointerDeleter<T> CSharedDeleter;
 
-		DEFINE_POOL_BASE(Pool, sizeof(CSharedBase<T>) + sizeof(CSharedDeleter));
+		DEFINE_POOL_BASE(Pool, sizeof(CSharedBase<T>) + sizeof(CSharedDeleter), 
+						 CSharedPtr<T>);
 		char *buf = Pool::Alloc();
 
 		try {
@@ -1440,7 +1441,8 @@ inline CSharedPtr<T> CSharedPtr<T>::CreateSharedBase(T1 *ptr, DeleterFn &fn)
 
 		typedef CSharedLambdaDeleter<T, DeleterFn> CSharedDeleter;
 
-		DEFINE_POOL_BASE(Pool, sizeof(CSharedBase<T>) + sizeof(CSharedDeleter));
+		DEFINE_POOL_BASE(Pool, sizeof(CSharedBase<T>) + sizeof(CSharedDeleter),
+						 CSharedPtr<T>);
 		char *buf = Pool::Alloc();
 
 		try {
@@ -1515,7 +1517,8 @@ inline CSharedPtr<T> MakeShared(Args && ... args)
 
 	typedef CSharedDefaultDeleter<T> CSharedDeleter;
 
-	DEFINE_POOL_BASE(Pool, sizeof(CSharedBase<T>) + sizeof(T) + sizeof(CSharedDeleter));
+	DEFINE_POOL_BASE(Pool, sizeof(CSharedBase<T>) + sizeof(T) + sizeof(CSharedDeleter),
+					 CSharedPtr<T>);
 	char *buf = Pool::Alloc();
 
 	if (nullptr == buf) {

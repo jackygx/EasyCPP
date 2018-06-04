@@ -105,7 +105,7 @@ private:
 
 		/* Create Lambda class and construct it.
 		 * Mainly to construct all the closures. */
-		DEFINE_POOL_BASE(Pool, sizeof(fn));
+		DEFINE_POOL_BASE(Pool, sizeof(fn), Lambda);
 		mThis = (void *)Pool::Alloc();
 		new (mThis) LambdaType(fn);
 

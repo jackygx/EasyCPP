@@ -23,7 +23,7 @@
 template <class T>
 class CClassPool
 {
-	DEFINE_POOL_BASE(Pool, sizeof(T));
+	DEFINE_POOL_BASE(Pool, sizeof(T), T);
 public:
 	template <class... Tn>
 	static CSharedPtr<T> Alloc(Tn... params)

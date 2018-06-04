@@ -25,7 +25,7 @@ typedef CSharedPtr<char> CMemPtr;
 template <int size>
 class CMemPool
 {
-	DEFINE_POOL_BASE(Pool, size);
+	DEFINE_POOL_BASE(Pool, size, CMemPool<size>);
 public:
 	inline static CMemPtr Alloc(void)
 	{
