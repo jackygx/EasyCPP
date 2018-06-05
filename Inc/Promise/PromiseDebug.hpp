@@ -18,6 +18,7 @@
 #define __PROMISE_DEBUG_HPP__
 
 #include <stdio.h>
+#include <Common/Common.hpp>
 
 //#define DEBUG_PROMISE
 
