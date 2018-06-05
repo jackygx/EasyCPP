@@ -84,7 +84,7 @@ private:
 };
 
 #define E(...) \
-	CException<CString>(__func__, __LINE__, __VA_ARGS__)
+	new CException<CString>(__func__, __LINE__, __VA_ARGS__)
 
 #endif /* __EXCEPTION_CSTRING_HPP__ */
 

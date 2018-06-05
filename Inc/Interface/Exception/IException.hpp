@@ -22,6 +22,8 @@ class IException
 public:
 	virtual void Show(void) const = 0;
 
+	virtual ~IException(void) {}
+
 public:
 	inline static void SetSymbol(const char *path);
 	inline static const char *GetSymbol(void);

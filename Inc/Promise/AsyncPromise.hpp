@@ -212,8 +212,9 @@ public:
 				PROMISE_INFO(COLOR_RED, "caller trigger the AsyncPromiseChail");
 				child->Trigger(CSharedPtr<CSyncPromise<Tn...>>(tn...));
 			});
-		} catch (const IException &e) {
-			e.Show();
+		} catch (const IException *e) {
+			e->Show();
+			delete e;
 			exit(-1);
 		} catch (...) {
 			PROMISE_DEBUG("Unknown error!!!");

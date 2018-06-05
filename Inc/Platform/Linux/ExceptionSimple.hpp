@@ -72,7 +72,7 @@ private:
 };
 
 #define ES(...) \
-	CExceptionSimple(__func__, __LINE__, __VA_ARGS__)
+	new CExceptionSimple(__func__, __LINE__, __VA_ARGS__)
 
 #endif /* __EXCEPTION_SIMPLE_HPP__ */
 
