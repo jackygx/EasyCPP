@@ -99,7 +99,7 @@ public:
 	inline void *ToToken(void);
 
 	/* Constructor from token */
-	inline CSharedPtr(const CSharedToken<T> *token);
+	inline explicit CSharedPtr(const CSharedToken<T> *token);
 
 public: /* operator = */
 	/* operator = nullptr */

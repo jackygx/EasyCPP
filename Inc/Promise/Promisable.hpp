@@ -17,6 +17,8 @@
 #ifndef __PROMISABLE_HPP__
 #define __PROMISABLE_HPP__
 
+#include <Meta/Meta.hpp>
+
 #include "PromiseDebug.hpp"
 
 class CPromisable
@@ -28,6 +30,9 @@ public:
 
 HAS_MEMBER(ImPromisable);
 #define IS_PROMISABLE(n) has_pointer_member_ImPromisable<n>
+
+#define PROMISABLE_TYPE(t) \
+	REMOVE_ARRAY(REMOVE_REFERENCE(t))
 
 #endif /* __PROMISABLE_HPP__ */
 

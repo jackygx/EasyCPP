@@ -18,6 +18,7 @@
 #define __PROMISE_HPP__
 
 #include "SyncPromise.hpp"
+#include "SyncPromiseHelp.hpp"
 #include "AsyncPromise.hpp"
 
 #endif /* __PROMISE_HPP__ */

@@ -118,7 +118,7 @@ public:
 		__Begin();
 	}
 
-	DEFINE_SYNC_PROMISE(First, T, Tn...);
+	DEFINE_SYNC_PROMISE(First, (T, Tn...), (void));
 	inline CFirstPromisePtr First(void)
 	{
 		__Begin();
@@ -316,7 +316,7 @@ public:
 		return nullptr;
 	}
 
-	DEFINE_SYNC_PROMISE(Find, T, Tn...);
+	DEFINE_SYNC_PROMISE(Find, (T, Tn...), (void));
 	DEFINE_FUNC(CustFind, bool(const T &, const Tn & ...));
 
 	template <class Fn,

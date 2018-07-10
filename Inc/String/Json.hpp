@@ -28,7 +28,7 @@ DEFINE_CLASS(Json);
 
 DEFINE_FUNC(JsonNotify, void(const CJsonPtr &));
 DEFINE_FUNC(JsonMiss, void(const CConstJsonPtr &));
-DEFINE_SYNC_PROMISE(Json, CJsonPtr);
+DEFINE_SYNC_PROMISE(Json, (CJsonPtr), (void));
 
 class CJson :
 	public CEnableSharedPtr<CJson>

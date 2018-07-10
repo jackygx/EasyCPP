@@ -24,6 +24,18 @@
 #include "DeduceFunc.hpp"
 
 template <class T>
+struct RemoveArray
+{
+	using type = T;
+};
+
+template <class T, int size>
+struct RemoveArray<T[size]>
+{
+	using type = T *;
+};
+
+template <class T>
 struct RemovePointer
 {
 	using type = T;
@@ -79,6 +91,9 @@ struct RemoveSharedPtr<const CSharedPtr<T>>
 {
 	using type = T;
 };
+
+#define REMOVE_ARRAY(T) \
+	typename RemoveArray<T>::type
 
 #define REMOVE_POINTER(T) \
 	typename RemovePointer<T>::type
