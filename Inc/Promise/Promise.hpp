@@ -19,7 +19,6 @@
 
 #include "SyncPromise.hpp"
 #include "AsyncPromise.hpp"
-#include "PromiseCommon.hpp"
 
 #endif /* __PROMISE_HPP__ */
 
