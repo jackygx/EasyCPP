@@ -295,7 +295,7 @@ private:
 };
 
 /* Succeed case: multiple parameters.
- * Fail case:    multiple parameters. */
+ * Fail case:    multiple parameters. (different type) */
 template <class... Tn, class... En>
 class CSyncPromise<pack<Tn...>, pack<En...>> :
 	public CSyncPromise<CSharedPtr<CPromiseParams<Tn...>>,
@@ -320,8 +320,33 @@ public:
 	}
 
 	/* Failure case. */
-	inline CSyncPromise(const En & ... en, bool  = false) :
+	inline CSyncPromise(const En & ... en, bool = false) :
 		Parent(ErrorType(en...), false)
+	{
+		/* Does nothing */
+	}
+};
+
+/* Succeed case: multiple parameters.
+ * Fail case:    multiple parameters. (sam type) */
+template <class... Tn>
+class CSyncPromise<pack<Tn...>, pack<Tn...>> :
+	public CSyncPromise<CSharedPtr<CPromiseParams<Tn...>>,
+						CSharedPtr<CPromiseParams<Tn...>>>
+{
+	typedef CSharedPtr<CPromiseParams<Tn...>> ParamType;
+	typedef CSyncPromise<ParamType, ParamType> Parent;
+
+public:
+	inline CSyncPromise(const CPromiseFail &fail) :
+		Parent(fail)
+	{
+		/* Does nothing */
+	}
+
+	/* Succeed case */
+	inline CSyncPromise(const Tn & ... tn, bool result) :
+		Parent(ParamType(tn...), result)
 	{
 		/* Does nothing */
 	}
