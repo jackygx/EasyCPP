@@ -120,7 +120,8 @@ public:
 		PROMISE_DEBUG("CSyncPromise<%s, %s> Then",
 					  TYPE_NAME(ParamType), TYPE_NAME(ErrorType));
 
-		typedef CSharedPtr<CSyncPromise<FN_RET_TYPE(Fn), ErrorType>> PromisePtr;
+		using RetType = decltype(mParams->Then(fn));
+		typedef CSharedPtr<CSyncPromise<RetType, ErrorType>> PromisePtr;
 
 		/* Succeed case */
 		if (mParams) {
@@ -293,7 +294,7 @@ private:
 	ParamType mParams;
 };
 
-/* Succeed case: promise.
+/* Succeed case: T.
  * Fail case:    promise parameter. */
 template <class T, class... En>
 class CSyncPromise<T, CSharedPtr<CPromiseParams<En...>>> :
