@@ -37,36 +37,57 @@ public:
 	}
 };
 
+template <class... T>
+struct CatchToPromise {};
+
 /* If Catch does not return,
  * It does not recover the error. */
-template <class PromisePtr,
-		 class RetType,
-		 ENABLE_IF(std::is_same<RetType, void>)>
-inline PromisePtr CatchRetToPromise(RetType)
+template <>
+struct CatchToPromise<void>
 {
-	return PromisePtr(CPromiseFail());
-}
+	template <class PromisePtr,
+			 class ErrorType,
+			 class Fn>
+	static inline PromisePtr Convert(ErrorType &&t, Fn &&fn)
+	{
+		t->Run(fn);
+		return PromisePtr(CPromiseFail());
+	}
+};
 
 /* If Catch returns nullptr,
  * It does not recover the error. */
-template <class PromisePtr,
-		 class RetType,
-		 ENABLE_IF(std::is_same<RetType, std::nullptr_t>)>
-inline PromisePtr CatchRetToPromise(RetType &&)
+template <>
+struct CatchToPromise<std::nullptr_t>
 {
-	return PromisePtr(CPromiseFail());
-}
+	template <class PromisePtr,
+			 class ErrorType,
+			 class Fn>
+	static inline PromisePtr Convert(ErrorType &&t, Fn &&fn)
+	{
+		t->Run(fn);
+		return PromisePtr(CPromiseFail());
+	}
+};
 
 /* If Catch returns PromisePtr,
  * It recovers the error. */
-template <class PromisePtr,
-		 class RetType,
-		 ENABLE_IF(!std::is_same<RetType, void>),
-		 ENABLE_IF(!std::is_same<RetType, std::nullptr_t>)>
-inline PromisePtr CatchRetToPromise(RetType && type)
+template <class T>
+struct CatchToPromise<T>
 {
-	return PromisePtr(type);
-}
+	template <class PromisePtr,
+			 class ErrorType,
+			 class Fn>
+	static inline PromisePtr Convert(ErrorType &&t, Fn &&fn)
+	{
+		return PromisePtr(t->Run(fn));
+	}
+};
+
+#define CATCH_TO_PROMISE(PromisePtr, mError, fn) \
+	using RetType = decltype(mErrors->Run(fn)); \
+	using CConverter = CatchToPromise<RetType>; \
+	return CConverter::template Convert<PromisePtr>(mErrors, fn);
 
 #endif /* __SYNC_PROMISE_HEADER_HPP__ */
 

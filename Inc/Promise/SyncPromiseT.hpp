@@ -153,7 +153,7 @@ public:
 
 		/* Fail case */
 		} else if (mErrors) {
-			return CatchRetToPromise<PromisePtr>(mErrors->Run(fn));
+			CATCH_TO_PROMISE(PromisePtr, mErrors, fn);
 
 		/* Ignore case */
 		} else {
@@ -377,7 +377,7 @@ public:
 
 		/* Fail case */
 		} else if (mErrors) {
-			return CatchRetToPromise<PromisePtr>(mErrors->Run(fn));
+			CATCH_TO_PROMISE(PromisePtr, mErrors, fn);
 
 		/* Ignore case */
 		} else {
