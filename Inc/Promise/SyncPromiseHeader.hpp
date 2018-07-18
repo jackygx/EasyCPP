@@ -89,5 +89,137 @@ struct CatchToPromise<T>
 	using CConverter = CatchToPromise<RetType>; \
 	return CConverter::template Convert<PromisePtr>(mErrors, fn);
 
+template <class... T>
+struct _ThenToPromise {};
+
+/* If Catch does not return,
+ * It does not recover the error. */
+template <>
+struct _ThenToPromise<void>
+{
+	template <class PromisePtr,
+			 class RetType,
+			 class PromiseType,
+			 class Fn,
+			 ENABLE_IF(IS_PROMISABLE(PromiseType)),
+			 ENABLE_IF(has_constructor<PromisePtr, bool>)>
+	static inline PromisePtr Convert(PromiseType &&t, Fn &&fn)
+	{
+		t->Then(fn);
+		return PromisePtr(true);
+	}
+
+	template <class PromisePtr,
+			 class RetType,
+			 class PromiseType,
+			 class Fn,
+			 ENABLE_IF(!IS_PROMISABLE(PromiseType)),
+			 ENABLE_IF(has_constructor<PromisePtr, bool>)>
+	static inline PromisePtr Convert(PromiseType &&t, Fn &&fn)
+	{
+		t->Run(fn);
+		return PromisePtr(true);
+	}
+
+	template <class PromisePtr,
+			 class RetType,
+			 class PromiseType,
+			 class Fn,
+			 ENABLE_IF(IS_PROMISABLE(PromiseType)),
+			 ENABLE_IF(!has_constructor<PromisePtr, bool>)>
+	static inline PromisePtr Convert(PromiseType &&t, Fn &&fn)
+	{
+		t->Then(fn);
+		return PromisePtr();
+	}
+
+	template <class PromisePtr,
+			 class RetType,
+			 class PromiseType,
+			 class Fn,
+			 ENABLE_IF(!IS_PROMISABLE(PromiseType)),
+			 ENABLE_IF(!has_constructor<PromisePtr, bool>)>
+	static inline PromisePtr Convert(PromiseType &&t, Fn &&fn)
+	{
+		t->Run(fn);
+		return PromisePtr();
+	}
+
+};
+
+/* If Catch returns PromisePtr,
+ * It recovers the error. */
+template <class T>
+struct _ThenToPromise<T>
+{
+	template <class PromisePtr,
+			 class RetType,
+			 class PromiseType,
+			 class Fn,
+			 ENABLE_IF(IS_PROMISABLE(PromiseType)),
+			 ENABLE_IF(has_constructor<PromisePtr, bool>)>
+	static inline PromisePtr Convert(PromiseType &&t, Fn &&fn)
+	{
+		return PromisePtr(t->Then(fn), true);
+	}
+
+	template <class PromisePtr,
+			 class RetType,
+			 class PromiseType,
+			 class Fn,
+			 ENABLE_IF(!IS_PROMISABLE(PromiseType)),
+			 ENABLE_IF(has_constructor<PromisePtr, bool>)>
+	static inline PromisePtr Convert(PromiseType &&t, Fn &&fn)
+	{
+		return PromisePtr(t->Run(fn), true);
+	}
+
+	template <class PromisePtr,
+			 class RetType,
+			 class PromiseType,
+			 class Fn,
+			 ENABLE_IF(IS_PROMISABLE(PromiseType)),
+			 ENABLE_IF(!has_constructor<PromisePtr, bool>)>
+	static inline PromisePtr Convert(PromiseType &&t, Fn &&fn)
+	{
+		return PromisePtr(t->Then(fn));
+	}
+
+	template <class PromisePtr,
+			 class RetType,
+			 class PromiseType,
+			 class Fn,
+			 ENABLE_IF(!IS_PROMISABLE(PromiseType)),
+			 ENABLE_IF(!has_constructor<PromisePtr, bool>)>
+	static inline PromisePtr Convert(PromiseType &&t, Fn &&fn)
+	{
+		return PromisePtr(t->Run(fn));
+	}
+};
+
+template <class PromisePtr,
+		 class ParamType,
+		 class Fn,
+		 ENABLE_IF(IS_PROMISABLE(ParamType))>
+inline PromisePtr ThenToPromise(ParamType &&params, Fn &&fn)
+{
+	using RetType = decltype(params->Then(fn));
+	using CConverter = _ThenToPromise<RetType>;
+
+	return CConverter::template Convert<PromisePtr, RetType>(params, fn);
+}
+
+template <class PromisePtr,
+		 class ParamType,
+		 class Fn,
+		 ENABLE_IF(!IS_PROMISABLE(ParamType))>
+inline PromisePtr ThenToPromise(ParamType &&params, Fn &&fn)
+{
+	using RetType = decltype(params->Run(fn));
+	using CConverter = _ThenToPromise<RetType>;
+
+	return CConverter::template Convert<PromisePtr, RetType>(params, fn);
+}
+
 #endif /* __SYNC_PROMISE_HEADER_HPP__ */
 

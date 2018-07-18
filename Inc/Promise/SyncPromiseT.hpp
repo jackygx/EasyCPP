@@ -60,7 +60,7 @@ public:
 
 		/* Succeed case */
 		if (mParams) {
-			return PromisePtr(mParams->Then(fn));
+			return ThenToPromise<PromisePtr>(mParams, fn);
 
 		/* Ignore case */
 		} else {
@@ -125,7 +125,7 @@ public:
 
 		/* Succeed case */
 		if (mParams) {
-			return PromisePtr(mParams->Then(fn), true);
+			return ThenToPromise<PromisePtr>(mParams, fn);
 
 		/* Fail case */
 		} else if (mErrors) {

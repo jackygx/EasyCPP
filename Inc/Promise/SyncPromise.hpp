@@ -54,7 +54,7 @@ public:
 
 		/* Succeed case */
 		if (mParams) {
-			return PromisePtr(mParams->Run(fn));
+			return ThenToPromise<PromisePtr>(mParams, fn);
 
 		/* Ignore case */
 		} else {
@@ -156,7 +156,7 @@ public:
 
 		/* Succeed case */
 		if (mResult) {
-			return PromisePtr(mParams->Run(fn), true);
+			return ThenToPromise<PromisePtr>(mParams, fn);
 
 		/* Fail case */
 		} else if (mErrors) {
@@ -251,7 +251,7 @@ public:
 
 		/* Succeed case */
 		if (mParams) {
-			return PromisePtr(mParams->Run(fn), true);
+			return ThenToPromise<PromisePtr>(mParams, fn);
 
 		/* Fail case */
 		} else if (mErrors) {
