@@ -52,14 +52,5 @@ inline decltype(auto) CreateSyncPromise(T && ... t)
 	return PromisePtr(ParamType(t...));
 }
 
-template <class... T>
-inline decltype(auto) CreateSyncPromise(void)
-{
-	typedef CSharedPtr<CPromiseParams<T...>> ParamType;
-	typedef CSharedPtr<CSyncPromise<ParamType>> PromisePtr;
-
-	return PromisePtr(ParamType());
-}
-
 #endif /* __SYNC_PROMISE_HELP_HPP__ */
 
