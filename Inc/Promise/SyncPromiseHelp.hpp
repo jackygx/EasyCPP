@@ -22,6 +22,9 @@
 #include "SyncPromise.hpp"
 
 #define PROMISE_PARAM_TYPE(...) \
+	CSharedPtr<CPromiseParams<__VA_ARGS__>>
+
+#define PROMISE_PACK_TYPE(...) \
 	pack<__VA_ARGS__>
 
 #define DEFINE_SYNC_PROMISE_1(name, params) \
@@ -31,8 +34,11 @@
 #define DEFINE_SYNC_PROMISE_2(name, params, errors) \
 	typedef PROMISE_PARAM_TYPE params C##name##PromiseParamsPtr; \
 	typedef PROMISE_PARAM_TYPE errors C##name##PromiseErrorsPtr; \
-	typedef CSharedPtr<CSyncPromise<C##name##PromiseParamsPtr, \
-									C##name##PromiseErrorsPtr>> C##name##PromisePtr
+	typedef PROMISE_PACK_TYPE params C##name##PromisePackParamsPtr; \
+	typedef PROMISE_PACK_TYPE errors C##name##PromisePackErrorsPtr; \
+	typedef CSharedPtr<CSyncPromise<C##name##PromisePackParamsPtr, \
+									C##name##PromisePackErrorsPtr>> \
+									C##name##PromisePtr
 
 #define DEFINE_SYNC_PROMISE(name, ...) \
 	CONNECT(DEFINE_SYNC_PROMISE_, NARG(__VA_ARGS__))(name, __VA_ARGS__)
