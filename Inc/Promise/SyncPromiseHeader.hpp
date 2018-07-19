@@ -98,7 +98,6 @@ template <>
 struct _ThenToPromise<void>
 {
 	template <class PromisePtr,
-			 class RetType,
 			 class PromiseType,
 			 class Fn,
 			 ENABLE_IF(IS_PROMISABLE(PromiseType)),
@@ -110,7 +109,6 @@ struct _ThenToPromise<void>
 	}
 
 	template <class PromisePtr,
-			 class RetType,
 			 class PromiseType,
 			 class Fn,
 			 ENABLE_IF(!IS_PROMISABLE(PromiseType)),
@@ -122,7 +120,6 @@ struct _ThenToPromise<void>
 	}
 
 	template <class PromisePtr,
-			 class RetType,
 			 class PromiseType,
 			 class Fn,
 			 ENABLE_IF(IS_PROMISABLE(PromiseType)),
@@ -134,7 +131,6 @@ struct _ThenToPromise<void>
 	}
 
 	template <class PromisePtr,
-			 class RetType,
 			 class PromiseType,
 			 class Fn,
 			 ENABLE_IF(!IS_PROMISABLE(PromiseType)),
@@ -153,44 +149,44 @@ template <class T>
 struct _ThenToPromise<T>
 {
 	template <class PromisePtr,
-			 class RetType,
 			 class PromiseType,
 			 class Fn,
 			 ENABLE_IF(IS_PROMISABLE(PromiseType)),
-			 ENABLE_IF(has_constructor<PromisePtr, bool>)>
+			 class RetType = T,
+			 ENABLE_IF(has_constructor<PromisePtr, RetType, bool>)>
 	static inline PromisePtr Convert(PromiseType &&t, Fn &&fn)
 	{
 		return PromisePtr(t->Then(fn), true);
 	}
 
 	template <class PromisePtr,
-			 class RetType,
 			 class PromiseType,
 			 class Fn,
 			 ENABLE_IF(!IS_PROMISABLE(PromiseType)),
-			 ENABLE_IF(has_constructor<PromisePtr, bool>)>
+			 class RetType = T,
+			 ENABLE_IF(has_constructor<PromisePtr, RetType, bool>)>
 	static inline PromisePtr Convert(PromiseType &&t, Fn &&fn)
 	{
 		return PromisePtr(t->Run(fn), true);
 	}
 
 	template <class PromisePtr,
-			 class RetType,
 			 class PromiseType,
 			 class Fn,
 			 ENABLE_IF(IS_PROMISABLE(PromiseType)),
-			 ENABLE_IF(!has_constructor<PromisePtr, bool>)>
+			 class RetType = T,
+			 ENABLE_IF(!has_constructor<PromisePtr, RetType, bool>)>
 	static inline PromisePtr Convert(PromiseType &&t, Fn &&fn)
 	{
 		return PromisePtr(t->Then(fn));
 	}
 
 	template <class PromisePtr,
-			 class RetType,
 			 class PromiseType,
 			 class Fn,
 			 ENABLE_IF(!IS_PROMISABLE(PromiseType)),
-			 ENABLE_IF(!has_constructor<PromisePtr, bool>)>
+			 class RetType = T,
+			 ENABLE_IF(!has_constructor<PromisePtr, RetType, bool>)>
 	static inline PromisePtr Convert(PromiseType &&t, Fn &&fn)
 	{
 		return PromisePtr(t->Run(fn));
@@ -206,7 +202,7 @@ inline PromisePtr ThenToPromise(ParamType &&params, Fn &&fn)
 	using RetType = decltype(params->Then(fn));
 	using CConverter = _ThenToPromise<RetType>;
 
-	return CConverter::template Convert<PromisePtr, RetType>(params, fn);
+	return CConverter::template Convert<PromisePtr>(params, fn);
 }
 
 template <class PromisePtr,
@@ -218,7 +214,7 @@ inline PromisePtr ThenToPromise(ParamType &&params, Fn &&fn)
 	using RetType = decltype(params->Run(fn));
 	using CConverter = _ThenToPromise<RetType>;
 
-	return CConverter::template Convert<PromisePtr, RetType>(params, fn);
+	return CConverter::template Convert<PromisePtr>(params, fn);
 }
 
 #endif /* __SYNC_PROMISE_HEADER_HPP__ */
