@@ -227,7 +227,7 @@ HAS_MEMBER(MaybeAssignable);
  **********************************************************/
 #define IS_FUNC(fn) std::is_same<typename deduce_function<fn>::is_func, std::true_type()>
 
-class CIfSameFunc
+class CIsSameFunc
 {
 public:
 	template <class Fn1,
@@ -244,7 +244,7 @@ public:
 
 HAS_MEMBER(IsSameFunc);
 #define IS_SAME_FUNC(Fn1, Fn2) \
-	has_template_member_IsSameFunc<CIfSameFunc, pack<Fn1, Fn2>>
+	has_template_member_IsSameFunc<CIsSameFunc, pack<Fn1, Fn2>>
 
 #endif /* __IS_HPP__ */
 
