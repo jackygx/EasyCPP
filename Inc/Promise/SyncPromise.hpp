@@ -24,7 +24,7 @@
  * Fail case:    N/A. */
 template <class... Tn>
 class CSyncPromise<CSharedPtr<CPromiseParams<Tn...>>> :
-	public CPromisable
+	public CPromiseBase
 {
 	typedef CSharedPtr<CPromiseParams<Tn...>> ParamType;
 
@@ -117,7 +117,7 @@ public:
 template <class... Tn>
 class CSyncPromise<CSharedPtr<CPromiseParams<Tn...>>,
 				   CSharedPtr<CPromiseParams<Tn...>>> :
-	public CPromisable
+	public CPromiseBase
 {
 	typedef CSharedPtr<CPromiseParams<Tn...>> ParamType;
 public:
@@ -204,7 +204,7 @@ private:
 template <class... Tn, class... En>
 class CSyncPromise<CSharedPtr<CPromiseParams<Tn...>>,
 				   CSharedPtr<CPromiseParams<En...>>> :
-	public CPromisable
+	public CPromiseBase
 {
 	typedef CSharedPtr<CPromiseParams<Tn...>> ParamType;
 	typedef CSharedPtr<CPromiseParams<En...>> ErrorType;

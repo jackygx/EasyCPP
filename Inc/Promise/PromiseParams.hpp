@@ -22,7 +22,7 @@
 #include <SharedPtr/SharedPtr.hpp>
 #include <Meta/Meta.hpp>
 
-#include "Promisable.hpp"
+#include "PromiseBase.hpp"
 #include "Thenable.hpp"
 #include "Catchable.hpp"
 

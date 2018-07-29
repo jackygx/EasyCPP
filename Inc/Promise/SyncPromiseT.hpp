@@ -30,7 +30,7 @@
  * Fail case:    N/A. */
 template <class... Tn>
 class CSyncPromise<CSharedPtr<CSyncPromise<Tn...>>> :
-	public CPromisable
+	public CPromiseBase
 {
 	typedef CSharedPtr<CSyncPromise<Tn...>> ParamType;
 
@@ -77,7 +77,7 @@ private:
 template <class... Tn, class... En>
 class CSyncPromise<CSharedPtr<CSyncPromise<Tn...>>,
 				   CSharedPtr<CPromiseParams<En...>>> :
-	public CPromisable
+	public CPromiseBase
 {
 	typedef CSharedPtr<CSyncPromise<Tn...>> ParamType;
 	typedef CSharedPtr<CPromiseParams<En...>> ErrorType;
@@ -170,7 +170,7 @@ private:
  * Fail case:    N/A. */
 template <>
 class CSyncPromise<void> :
-	public CPromisable
+	public CPromiseBase
 {
 public:
 	inline CSyncPromise(const CPromiseFail &)
@@ -192,7 +192,7 @@ public:
  * Fail case:    promise parameter. */
 template <class... En>
 class CSyncPromise<void, CSharedPtr<CPromiseParams<En...>>> :
-	public CPromisable
+	public CPromiseBase
 {
 	typedef CSharedPtr<CPromiseParams<En...>> ErrorType;
 
@@ -243,7 +243,7 @@ private:
  * Fail case:    N/A. */
 template <class T>
 class CSyncPromise<T> :
-	public CPromisable
+	public CPromiseBase
 {
 	typedef TO_PROMISABLE_TYPE(T) ParamType;
 
@@ -298,7 +298,7 @@ private:
  * Fail case:    promise parameter. */
 template <class T, class... En>
 class CSyncPromise<T, CSharedPtr<CPromiseParams<En...>>> :
-	public CPromisable
+	public CPromiseBase
 {
 	typedef TO_PROMISABLE_TYPE(T) ParamType;
 	typedef CSharedPtr<CPromiseParams<En...>> ErrorType;

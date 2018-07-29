@@ -22,7 +22,7 @@
 #include <SharedPtr/SharedPtr.hpp>
 #include <Meta/Meta.hpp>
 
-#include "Promisable.hpp"
+#include "PromiseBase.hpp"
 #include "SyncPromise.hpp"
 
 namespace PromiseChain
@@ -155,7 +155,7 @@ private:
 
 template <class... Tn>
 class CAsyncPromise :
-	public CPromisable,
+	public CPromiseBase,
 	public CEnableSharedPtr<CAsyncPromise<Tn...>>
 {
 	/* CSharedPtr<CAsyncPromise<>> */
