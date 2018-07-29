@@ -89,7 +89,7 @@ public:
 	}
 
 	/* Succeed case */
-	inline CSyncPromise(const ParamType &promise, bool = true) :
+	inline CSyncPromise(const ParamType &promise, CPromiseBase::Type = CPromiseBase::SUCCEED) :
 		mParams(promise),
 		mErrors(nullptr)
 	{
@@ -98,7 +98,7 @@ public:
 	}
 
 	/* Failure case. */
-	inline CSyncPromise(const ErrorType &errors, bool = false) :
+	inline CSyncPromise(const ErrorType &errors, CPromiseBase::Type = CPromiseBase::FAIL) :
 		mParams(nullptr),
 		mErrors(errors)
 	{
@@ -123,7 +123,7 @@ public:
 
 		/* Fail case */
 		} else if (mErrors) {
-			return PromisePtr(mErrors, false);
+			return PromisePtr(mErrors, CPromiseBase::FAIL);
 
 		/* Ignore case */
 		} else {
@@ -201,14 +201,14 @@ public:
 	}
 
 	/* Succeed case */
-	inline CSyncPromise(bool = true) :
+	inline CSyncPromise(CPromiseBase::Type = CPromiseBase::SUCCEED) :
 		mErrors(nullptr)
 	{
 		PROMISE_DEBUG("CSyncPromise<void, %s> succeed", TYPE_NAME(ErrorType));
 	}
 
 	/* Failure case. */
-	inline CSyncPromise(const ErrorType &errors, bool = false) :
+	inline CSyncPromise(const ErrorType &errors, CPromiseBase::Type = CPromiseBase::FAIL) :
 		mErrors(errors)
 	{
 		PROMISE_DEBUG("CSyncPromise<void, %s> fail", TYPE_NAME(ErrorType));
@@ -249,7 +249,7 @@ public:
 			 ENABLE_IF(std::is_same<_T, ParamType>),
 			 ENABLE_IF(has_constructor<_T, std::nullptr_t>)>
 	inline CSyncPromise(const CPromiseBase::Ignore &) :
-		mResult(false),
+		mResult(CPromiseBase::FAIL),
 		mParams(nullptr)
 	{
 		PROMISE_DEBUG("CSyncPromise<%s> ignore", TYPE_NAME(ParamType));
@@ -259,14 +259,14 @@ public:
 			 ENABLE_IF(std::is_same<_T, ParamType>),
 			 ENABLE_IF(!has_constructor<_T, std::nullptr_t>)>
 	inline CSyncPromise(const CPromiseBase::Ignore &) :
-		mResult(false)
+		mResult(CPromiseBase::FAIL)
 	{
 		PROMISE_DEBUG("CSyncPromise<%s> ignore", TYPE_NAME(ParamType));
 	}
 
 	/* Succeed case */
 	inline CSyncPromise(const ParamType &promise) :
-		mResult(true),
+		mResult(CPromiseBase::SUCCEED),
 		mParams(promise)
 	{
 		PROMISE_DEBUG("CSyncPromise<%s> succeed", TYPE_NAME(ParamType));
@@ -276,7 +276,7 @@ public:
 	template <class _T = ParamType>
 	inline _T Convert(void) const
 	{
-		if (mResult) {
+		if (mResult == CPromiseBase::SUCCEED) {
 			return mParams;
 		} else {
 			throw ES("Some promise error is not handled");
@@ -284,7 +284,7 @@ public:
 	}
 
 private:
-	bool mResult;
+	CPromiseBase::Type mResult;
 	ParamType mParams;
 };
 
@@ -305,7 +305,7 @@ public:
 			 ENABLE_IF(std::is_same<_T, ParamType>),
 			 ENABLE_IF(has_constructor<_T, std::nullptr_t>)>
 	inline CSyncPromise(const CPromiseBase::Ignore &) :
-		mResult(false),
+		mResult(CPromiseBase::FAIL),
 		mParams(nullptr),
 		mErrors(nullptr)
 	{
@@ -316,15 +316,15 @@ public:
 			 ENABLE_IF(std::is_same<_T, ParamType>),
 			 ENABLE_IF(!has_constructor<_T, std::nullptr_t>)>
 	inline CSyncPromise(const CPromiseBase::Ignore &) :
-		mResult(false),
+		mResult(CPromiseBase::FAIL),
 		mErrors(nullptr)
 	{
 		PROMISE_DEBUG("CSyncPromise<%s> ignore", TYPE_NAME(ParamType));
 	}
 
 	/* Succeed case */
-	inline CSyncPromise(const ParamType &promise, bool = true) :
-		mResult(true),
+	inline CSyncPromise(const ParamType &promise, CPromiseBase::Type = CPromiseBase::SUCCEED) :
+		mResult(CPromiseBase::SUCCEED),
 		mParams(promise),
 		mErrors(nullptr)
 	{
@@ -336,8 +336,8 @@ public:
 	template <class _T = ParamType,
 			 ENABLE_IF(std::is_same<_T, ParamType>),
 			 ENABLE_IF(has_constructor<_T, std::nullptr_t>)>
-	inline CSyncPromise(const ErrorType &errors, bool = false) :
-		mResult(false),
+	inline CSyncPromise(const ErrorType &errors, CPromiseBase::Type = CPromiseBase::FAIL) :
+		mResult(CPromiseBase::FAIL),
 		mParams(nullptr),
 		mErrors(errors)
 	{
@@ -348,8 +348,8 @@ public:
 	template <class _T = ParamType,
 			 ENABLE_IF(std::is_same<_T, ParamType>),
 			 ENABLE_IF(!has_constructor<_T, std::nullptr_t>)>
-	inline CSyncPromise(const ErrorType &errors, bool = false) :
-		mResult(false),
+	inline CSyncPromise(const ErrorType &errors, CPromiseBase::Type = CPromiseBase::FAIL) :
+		mResult(CPromiseBase::FAIL),
 		mErrors(errors)
 	{
 		PROMISE_DEBUG("CSyncPromise<%s, %s> fail",
@@ -366,7 +366,7 @@ public:
 		typedef CSharedPtr<CSyncPromise<ParamType>> PromisePtr;
 
 		/* Succeed case */
-		if (mResult) {
+		if (mResult == CPromiseBase::SUCCEED) {
 			return PromisePtr(mParams);
 
 		/* Fail case */
@@ -380,7 +380,7 @@ public:
 	}
 
 private:
-	bool mResult;
+	CPromiseBase::Type mResult;
 	ParamType mParams;
 	ErrorType mErrors;
 };
@@ -403,14 +403,14 @@ public:
 		/* Does nothing */
 	}
 
-	inline CSyncPromise(const ParamType &promise, bool = true) :
-		Parent(promise, true)
+	inline CSyncPromise(const ParamType &promise, CPromiseBase::Type = CPromiseBase::SUCCEED) :
+		Parent(promise, CPromiseBase::SUCCEED)
 	{
 		/* Does nothing */
 	}
 
-	inline CSyncPromise(const En & ... en, bool = false) :
-		Parent(ErrorType(en...), false)
+	inline CSyncPromise(const En & ... en, CPromiseBase::Type = CPromiseBase::FAIL) :
+		Parent(ErrorType(en...), CPromiseBase::FAIL)
 	{
 		/* Does nothing */
 	}
@@ -434,14 +434,14 @@ public:
 		/* Does nothing */
 	}
 
-	inline CSyncPromise(const ParamType &promise, bool = true) :
-		Parent(promise, true)
+	inline CSyncPromise(const ParamType &promise, CPromiseBase::Type = CPromiseBase::SUCCEED) :
+		Parent(promise, CPromiseBase::SUCCEED)
 	{
 		/* Does nothing */
 	}
 
-	inline CSyncPromise(bool = false) :
-		Parent(ErrorType(), false)
+	inline CSyncPromise(CPromiseBase::Type = CPromiseBase::FAIL) :
+		Parent(ErrorType(), CPromiseBase::FAIL)
 	{
 		/* Does nothing */
 	}
@@ -555,14 +555,14 @@ public:
 	inline CSyncPromise(const CPromiseBase::Ignore &) :
 		mParams(nullptr),
 		mErrors(nullptr),
-		mResult(false)
+		mResult(CPromiseBase::FAIL)
 	{
 		PROMISE_DEBUG("CSyncPromise<%s, %s> ignore",
 					  TYPE_NAME(ParamType), TYPE_NAME(ParamType));
 	}
 
 	/* Succeed/fail case */
-	inline CSyncPromise(const ParamType &params, bool result) :
+	inline CSyncPromise(const ParamType &params, CPromiseBase::Type result) :
 		mParams(params),
 		mErrors(params),
 		mResult(result)
@@ -583,12 +583,12 @@ public:
 		typedef CSharedPtr<CSyncPromise<FN_RET_TYPE(Fn), ParamType>> PromisePtr;
 
 		/* Succeed case */
-		if (mResult) {
+		if (mResult == CPromiseBase::SUCCEED) {
 			return ThenToPromise<PromisePtr>(mParams, fn);
 
 		/* Fail case */
 		} else if (mErrors) {
-			return PromisePtr(mErrors, false);
+			return PromisePtr(mErrors, CPromiseBase::FAIL);
 
 		/* Ignore case */
 		} else {
@@ -608,7 +608,7 @@ public:
 		typedef CSharedPtr<CSyncPromise<ParamType>> PromisePtr;
 
 		/* Succeed case */
-		if (mResult) {
+		if (mResult == CPromiseBase::SUCCEED) {
 			return PromisePtr(mParams);
 
 		/* Fail case */
@@ -624,7 +624,7 @@ public:
 private:
 	ParamType mParams;
 	ParamType mErrors;
-	bool mResult;
+	CPromiseBase::Type mResult;
 };
 
 /* Succeed case: promise parameter.
@@ -650,7 +650,7 @@ public:
 	}
 
 	/* Succeed case */
-	inline CSyncPromise(const ParamType &params, bool = true) :
+	inline CSyncPromise(const ParamType &params, CPromiseBase::Type = CPromiseBase::SUCCEED) :
 		mParams(params),
 		mErrors(nullptr)
 	{
@@ -659,7 +659,7 @@ public:
 	}
 
 	/* Failure case. */
-	inline CSyncPromise(const ErrorType &errors, bool = false) :
+	inline CSyncPromise(const ErrorType &errors, CPromiseBase::Type = CPromiseBase::FAIL) :
 		mParams(nullptr),
 		mErrors(errors)
 	{
@@ -683,7 +683,7 @@ public:
 
 		/* Fail case */
 		} else if (mErrors) {
-			return PromisePtr(mErrors, false);
+			return PromisePtr(mErrors, CPromiseBase::FAIL);
 
 		/* Ignore case */
 		} else {
@@ -741,15 +741,15 @@ public:
 	}
 
 	/* Succeed case */
-	inline CSyncPromise(const Tn & ... tn, bool = true) :
-		Parent(ParamType(tn...), true)
+	inline CSyncPromise(const Tn & ... tn, CPromiseBase::Type = CPromiseBase::SUCCEED) :
+		Parent(ParamType(tn...), CPromiseBase::SUCCEED)
 	{
 		/* Does nothing */
 	}
 
 	/* Failure case. */
-	inline CSyncPromise(const En & ... en, bool = false) :
-		Parent(ErrorType(en...), false)
+	inline CSyncPromise(const En & ... en, CPromiseBase::Type = CPromiseBase::FAIL) :
+		Parent(ErrorType(en...), CPromiseBase::FAIL)
 	{
 		/* Does nothing */
 	}
@@ -773,7 +773,7 @@ public:
 	}
 
 	/* Succeed case */
-	inline CSyncPromise(const Tn & ... tn, bool result) :
+	inline CSyncPromise(const Tn & ... tn, CPromiseBase::Type result) :
 		Parent(ParamType(tn...), result)
 	{
 		/* Does nothing */
@@ -799,15 +799,15 @@ public:
 	}
 
 	/* Succeed case */
-	inline CSyncPromise(bool = true) :
-		Parent(ParamType(), true)
+	inline CSyncPromise(CPromiseBase::Type = CPromiseBase::SUCCEED) :
+		Parent(ParamType(), CPromiseBase::SUCCEED)
 	{
 		/* Does nothing */
 	}
 
 	/* Failure case. */
-	inline CSyncPromise(const En & ... en, bool = false) :
-		Parent(ErrorType(en...), false)
+	inline CSyncPromise(const En & ... en, CPromiseBase::Type = CPromiseBase::FAIL) :
+		Parent(ErrorType(en...), CPromiseBase::FAIL)
 	{
 		/* Does nothing */
 	}
@@ -832,15 +832,15 @@ public:
 	}
 
 	/* Succeed case */
-	inline CSyncPromise(const Tn & ... tn, bool = true) :
-		Parent(ParamType(tn...), true)
+	inline CSyncPromise(const Tn & ... tn, CPromiseBase::Type = CPromiseBase::SUCCEED) :
+		Parent(ParamType(tn...), CPromiseBase::SUCCEED)
 	{
 		/* Does nothing */
 	}
 
 	/* Failure case. */
-	inline CSyncPromise(bool = false) :
-		Parent(ErrorType(), false)
+	inline CSyncPromise(CPromiseBase::Type = CPromiseBase::FAIL) :
+		Parent(ErrorType(), CPromiseBase::FAIL)
 	{
 		/* Does nothing */
 	}
@@ -863,7 +863,7 @@ public:
 		/* Does nothing */
 	}
 
-	inline CSyncPromise(bool result) :
+	inline CSyncPromise(CPromiseBase::Type result) :
 		Parent(ParamType(), result)
 	{
 		/* Does nothing */
