@@ -14,15 +14,23 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __META_HPP__
-#define __META_HPP__
+#ifndef __TYPE_ALISA_HPP__
+#define __TYPE_ALISA_HPP__
 
-#include "TypeAlias.hpp"
-#include "DeduceFunc.hpp"
-#include "EnableIf.hpp"
-#include "Expander.hpp"
-#include "Expander.hpp"
-#include "Is.hpp"
+/* The macro is used in the template.
+ * The template of the class cannot be used
+ * by its member function's meta program directly.
+ * It can be fixed by using an alias of the type.
+ * The macro also makes sure the caller cannot
+ * explicitly define some other type of the alias.
+ * Usage example:
+ * template <TYPE_ALIAS(_T, T),
+ *           ENABLE_IF(is_abstract<_T>)>
+ * void Example(void);
+ */
+#define TYPE_ALIAS(Alias, T) \
+	typename Alias = T, \
+	ENABLE_IF(std::is_same<Alias, T>)
 
-#endif /* __META_HPP__ */
+#endif /* __TYPE_ALISA_HPP__ */
 
