@@ -23,6 +23,8 @@
 #include <Meta/Meta.hpp>
 
 #include "Promisable.hpp"
+#include "Thenable.hpp"
+#include "Catchable.hpp"
 
 #define TO_PROMISABLE_TYPE(t) \
 	REMOVE_ARRAY(REMOVE_REFERENCE(t))
@@ -31,7 +33,9 @@ template <class... T>
 class CPromiseParams {};
 
 template <>
-class CPromiseParams<void>
+class CPromiseParams<void> :
+	public CThenable,
+	public CCatchable
 {
 public:
 	inline CPromiseParams(void)
@@ -53,7 +57,9 @@ public:
 };
 
 template <>
-class CPromiseParams<>
+class CPromiseParams<> :
+	public CThenable,
+	public CCatchable
 {
 public:
 	inline CPromiseParams(void)
