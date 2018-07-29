@@ -18,701 +18,492 @@
 #define __SYNC_PROMISE_BASE_HPP__
 
 #include "PromiseParams.hpp"
-#include "SyncPromiseHeader.hpp"
+#include "SyncPromiseCreator.hpp"
 
-/* Succeed case: SyncPromise.
- * Fail case:    N/A. */
-template <class... Tn>
-class CSyncPromise<CSharedPtr<CSyncPromise<Tn...>>> :
-	public CPromiseBase
-{
-	typedef CSharedPtr<CSyncPromise<Tn...>> ParamType;
+/* Prototype of the CSyncPromiseBase */
+template <class... T>
+class CSyncPromise {};
 
-public:
-	/* the error comes from the previous promise.
-	 * So we will ignore Then or Catch in this promise.
-	 * Just pass the error to next promise. */
-	inline CSyncPromise(const CPromiseBase::Ignore &) :
-		mParams(nullptr)
-	{
-		PROMISE_DEBUG("CSyncPromise<%s> ignore", TYPE_NAME(ParamType));
-	}
-
-	/* Succeed case */
-	inline CSyncPromise(const ParamType &promise) :
-		mParams(promise)
-	{
-		PROMISE_DEBUG("CSyncPromise<%s> succeed", TYPE_NAME(ParamType));
-	}
-
-	template <class Fn>
-	inline decltype(auto) Then(const Fn &fn)
-	{
-		PROMISE_DEBUG("CSyncPromise<%s> Then", TYPE_NAME(ParamType));
-
-		typedef CSharedPtr<CSyncPromise<FN_RET_TYPE(Fn)>> PromisePtr;
-
-		/* Succeed case */
-		if (mParams) {
-			return ThenToPromise<PromisePtr>(mParams, fn);
-
-		/* Ignore case */
-		} else {
-			return PromisePtr(CPromiseBase::Ignore());
-		}
-	}
-
-private:
-	ParamType mParams;
-};
-
-/* Succeed case: promise.
- * Fail case:    promise parameter. */
-template <class... Tn, class... En>
-class CSyncPromise<CSharedPtr<CSyncPromise<Tn...>>,
-				   CSharedPtr<CPromiseParams<En...>>> :
-	public CPromiseBase
-{
-	typedef CSharedPtr<CSyncPromise<Tn...>> ParamType;
-	typedef CSharedPtr<CPromiseParams<En...>> ErrorType;
-
-public:
-	/* the error comes from the previous promise.
-	 * So we will ignore Then or Catch in this promise.
-	 * Just pass the error to next promise. */
-	inline CSyncPromise(const CPromiseBase::Ignore &) :
-		mParams(nullptr),
-		mErrors(nullptr)
-	{
-		PROMISE_DEBUG("CSyncPromise<%s, %s> ignore",
-					  TYPE_NAME(ParamType), TYPE_NAME(ErrorType));
-	}
-
-	/* Succeed case */
-	inline CSyncPromise(const ParamType &promise, CPromiseBase::Type = CPromiseBase::SUCCEED) :
-		mParams(promise),
-		mErrors(nullptr)
-	{
-		PROMISE_DEBUG("CSyncPromise<%s, %s> succeed",
-					  TYPE_NAME(ParamType), TYPE_NAME(ErrorType));
-	}
-
-	/* Failure case. */
-	inline CSyncPromise(const ErrorType &errors, CPromiseBase::Type = CPromiseBase::FAIL) :
-		mParams(nullptr),
-		mErrors(errors)
-	{
-		PROMISE_DEBUG("CSyncPromise<%s, %s> fail",
-					  TYPE_NAME(ParamType), TYPE_NAME(ErrorType));
-	}
-
-	/* We need to append the ErrorType to the Promise
-	 * until it is catched. */
-	template <class Fn>
-	inline decltype(auto) Then(const Fn &fn)
-	{
-		PROMISE_DEBUG("CSyncPromise<%s, %s> Then",
-					  TYPE_NAME(ParamType), TYPE_NAME(ErrorType));
-
-		using RetType = decltype(mParams->Then(fn));
-		typedef CSharedPtr<CSyncPromise<RetType, ErrorType>> PromisePtr;
-
-		/* Succeed case */
-		if (mParams) {
-			return ThenToPromise<PromisePtr>(mParams, fn);
-
-		/* Fail case */
-		} else if (mErrors) {
-			return PromisePtr(mErrors, CPromiseBase::FAIL);
-
-		/* Ignore case */
-		} else {
-			return PromisePtr(CPromiseBase::Ignore());
-		}
-	}
-
-	/* Now the error is catched, we can remove the [ErrorType] */
-	template <class Fn>
-	inline decltype(auto) Catch(const Fn &fn)
-	{
-		PROMISE_DEBUG("CSyncPromise<%s, %s> Catch",
-					  TYPE_NAME(ParamType), TYPE_NAME(ErrorType));
-
-		/* ParamType is a promise */
-		typedef ParamType PromisePtr;
-
-		/* Succeed case */
-		if (mParams) {
-			return mParams;
-
-		/* Fail case */
-		} else if (mErrors) {
-			CATCH_TO_PROMISE(PromisePtr, mErrors, fn);
-
-		/* Ignore case */
-		} else {
-			return PromisePtr(CPromiseBase::Ignore());
-		}
-	}
-
-private:
-	ParamType mParams;
-	ErrorType mErrors;
-};
-
-/* Succeed case: void.
- * Fail case:    N/A. */
+/* This is an Empty SyncPromise.
+ * It does not provide any method. */
 template <>
 class CSyncPromise<void> :
 	public CPromiseBase
 {
 public:
-	inline CSyncPromise(const CPromiseBase::Ignore &)
+	template <class... T>
+	inline CSyncPromise(T && ...) :
+		CPromiseBase(IGNORE)
 	{
-		PROMISE_DEBUG("CSyncPromise<void> ignore");
+		PROMISE_DEBUG("CSyncPromiseBase<void>: Constructor");
 	}
-
-	/* Succeed case */
-	inline CSyncPromise(void)
-	{
-		PROMISE_DEBUG("CSyncPromise<void> succeed");
-	}
-
-	/* No Then.
-	 * If someone does not return, it is the end of the chain */
 };
 
-/* Succeed case: void.
- * Fail case:    promise parameter. */
-template <class... En>
-class CSyncPromise<void, CSharedPtr<CPromiseParams<En...>>> :
-	public CPromiseBase
-{
-	typedef CSharedPtr<CPromiseParams<En...>> ErrorType;
-
-public:
-	/* the error comes from the previous promise.
-	 * So we will ignore Then or Catch in this promise.
-	 * Just pass the error to next promise. */
-	inline CSyncPromise(const CPromiseBase::Ignore &) :
-		mErrors(nullptr)
-	{
-		PROMISE_DEBUG("CSyncPromise<void, %s> ignore", TYPE_NAME(ErrorType));
-	}
-
-	/* Succeed case */
-	inline CSyncPromise(CPromiseBase::Type = CPromiseBase::SUCCEED) :
-		mErrors(nullptr)
-	{
-		PROMISE_DEBUG("CSyncPromise<void, %s> succeed", TYPE_NAME(ErrorType));
-	}
-
-	/* Failure case. */
-	inline CSyncPromise(const ErrorType &errors, CPromiseBase::Type = CPromiseBase::FAIL) :
-		mErrors(errors)
-	{
-		PROMISE_DEBUG("CSyncPromise<void, %s> fail", TYPE_NAME(ErrorType));
-	}
-
-	/* No Then.
-	 * If someone does not return, it is the end of the chain. */
-
-	/* Process the error and no return because it is the end of the chain. */
-	template <class Fn>
-	inline void Catch(const Fn &fn)
-	{
-		PROMISE_DEBUG("CSyncPromise<void, %s> Catch", TYPE_NAME(ErrorType));
-
-		/* Fail case */
-		if (mErrors) {
-			mErrors->Run(fn);
-		}
-	}
-
-private:
-	ErrorType mErrors;
-};
-
-/* Succeed case: value.
- * Fail case:    N/A. */
+/* This is a succeed only SyncPromiseBase.
+ * Either the promise is created without ErrorType
+ * or all the ErrorTypes are handled by Catch.
+ * Only Then method of this promise will be handled
+ * if the previous Catch method recovers the error,
+ * Otherwise, this promise will be ignored. */
 template <class T>
 class CSyncPromise<T> :
-	public CPromiseBase
+	public CPromiseBase,
+	public CThenable
 {
 	typedef TO_PROMISABLE_TYPE(T) ParamType;
 
 public:
-	/* the error comes from the previous promise.
-	 * So we will ignore Then or Catch in this promise.
-	 * Just pass the error to next promise. */
-	template <class _T = ParamType,
-			 ENABLE_IF(std::is_same<_T, ParamType>),
-			 ENABLE_IF(has_constructor<_T, std::nullptr_t>)>
-	inline CSyncPromise(const CPromiseBase::Ignore &) :
-		mResult(CPromiseBase::FAIL),
+	/**********************************************************
+	 * If the previous Catch method does not reocver the error,
+	 * This constructor is provided to create an ignored Promise.
+	 * The ignored promise will not call Then/Catch method and
+	 * it will only keep creating other ignored Promise.
+	 **********************************************************/
+
+	/* ParamType can be constructed by nullptr */
+	template <TYPE_ALIAS(_ParamType, ParamType),
+			 ENABLE_IF(has_constructor<_ParamType, std::nullptr_t>)>
+	inline CSyncPromise(const Ignore &) :
+		CPromiseBase(IGNORE),
 		mParams(nullptr)
 	{
-		PROMISE_DEBUG("CSyncPromise<%s> ignore", TYPE_NAME(ParamType));
+		PROMISE_DEBUG("CSyncPromise<%s>[%d] constructor",
+					  TYPE_NAME(ParamType),
+					  mPromiseType);
 	}
 
-	template <class _T = ParamType,
-			 ENABLE_IF(std::is_same<_T, ParamType>),
-			 ENABLE_IF(!has_constructor<_T, std::nullptr_t>)>
-	inline CSyncPromise(const CPromiseBase::Ignore &) :
-		mResult(CPromiseBase::FAIL)
+	/* ParamType cannot be constructed by nullptr */
+	template <TYPE_ALIAS(_ParamType, ParamType),
+			 ENABLE_IF(!has_constructor<_ParamType, std::nullptr_t>)>
+	inline CSyncPromise(const Ignore &) :
+		CPromiseBase(IGNORE)
 	{
-		PROMISE_DEBUG("CSyncPromise<%s> ignore", TYPE_NAME(ParamType));
+		PROMISE_DEBUG("CSyncPromise<%s>[%d] constructor",
+					  TYPE_NAME(ParamType),
+					  mPromiseType);
 	}
 
-	/* Succeed case */
-	inline CSyncPromise(const ParamType &promise) :
-		mResult(CPromiseBase::SUCCEED),
-		mParams(promise)
+	/*************************************************
+	 * Succeed case.
+	 *************************************************/
+	inline CSyncPromise(const ParamType &params, CPromiseBase::Type = SUCCEED) :
+		CPromiseBase(SUCCEED),
+		mParams(params)
 	{
-		PROMISE_DEBUG("CSyncPromise<%s> succeed", TYPE_NAME(ParamType));
+		PROMISE_DEBUG("CSyncPromise<%s>[%d] constructor",
+					  TYPE_NAME(ParamType),
+					  mPromiseType);
 	}
 
-	/* Implicitly converted to the ParamType */
-	template <class _T = ParamType>
-	inline _T Convert(void) const
+	/*********************************************************
+	 * If ParamType is thenable, Then method is provided.
+	 **********************************************************/
+	template <class Fn,
+			 TYPE_ALIAS(_ParamType, ParamType),
+			 ENABLE_IF(IS_THENABLE(_ParamType)),
+			 TYPE_ALIAS(RetType, FN_RET_TYPE(Fn)),
+			 TYPE_ALIAS(PromisePtr, CSharedPtr<CSyncPromise<RetType>>)>
+	inline PromisePtr Then(const Fn &fn)
 	{
-		if (mResult == CPromiseBase::SUCCEED) {
+		PROMISE_DEBUG("CSyncPromise<%s>[%d] Then",
+					  TYPE_NAME(ParamType),
+					  mPromiseType);
+
+		switch (mPromiseType) {
+		case SUCCEED:
+			return ThenCreatePromise<PromisePtr>(mParams, fn);
+
+		default:
+			return PromisePtr(CPromiseBase::Ignore());
+		}
+	}
+
+	/*********************************************************
+	 * If ParamType is not thenable, this promise can be
+	 * implicitly converted into the ParamType.
+	 **********************************************************/
+	template <class Fn,
+			  TYPE_ALIAS(_ParamType, ParamType),
+			  ENABLE_IF(!IS_THENABLE(_ParamType))>
+	inline _ParamType Convert(void) const
+	{
+		switch (mPromiseType) {
+		case SUCCEED:
 			return mParams;
-		} else {
+
+		default:
 			throw ES("Some promise error is not handled");
 		}
 	}
 
 private:
-	CPromiseBase::Type mResult;
 	ParamType mParams;
 };
 
-/* Succeed case: T.
- * Fail case:    promise parameter. */
-template <class T, class... En>
-class CSyncPromise<T, CSharedPtr<CPromiseParams<En...>>> :
-	public CPromiseBase
+/* This is a fail only SyncPromiseBase.
+ * The Then method of the previous promise
+ * did not return so there will be only ErrorType. */
+template <class T>
+class CSyncPromise<void, T> :
+	public CPromiseBase,
+	public CThenable
 {
-	typedef TO_PROMISABLE_TYPE(T) ParamType;
-	typedef CSharedPtr<CPromiseParams<En...>> ErrorType;
+	typedef TO_PROMISABLE_TYPE(T) ErrorType;
 
 public:
-	/* the error comes from the previous promise.
-	 * So we will ignore Then or Catch in this promise.
-	 * Just pass the error to next promise. */
-	template <class _T = ParamType,
-			 ENABLE_IF(std::is_same<_T, ParamType>),
-			 ENABLE_IF(has_constructor<_T, std::nullptr_t>)>
-	inline CSyncPromise(const CPromiseBase::Ignore &) :
-		mResult(CPromiseBase::FAIL),
-		mParams(nullptr),
+	/**********************************************************
+	 * If the previous Catch method does not reocver the error,
+	 * This constructor is provided to create an ignored Promise.
+	 * The ignored promise will not call Then/Catch method and
+	 * it will only keep creating other ignored Promise.
+	 **********************************************************/
+
+	/* ErrorType can be constructed by nullptr */
+	template <TYPE_ALIAS(_ParamType, ErrorType),
+			 ENABLE_IF(has_constructor<_ParamType, std::nullptr_t>)>
+	inline CSyncPromise(const Ignore &) :
+		CPromiseBase(IGNORE),
 		mErrors(nullptr)
 	{
-		PROMISE_DEBUG("CSyncPromise<%s> ignore", TYPE_NAME(ParamType));
+		PROMISE_DEBUG("CSyncPromise<void, %s>[%d] constructor",
+					  TYPE_NAME(ErrorType),
+					  mPromiseType);
 	}
 
-	template <class _T = ParamType,
-			 ENABLE_IF(std::is_same<_T, ParamType>),
-			 ENABLE_IF(!has_constructor<_T, std::nullptr_t>)>
-	inline CSyncPromise(const CPromiseBase::Ignore &) :
-		mResult(CPromiseBase::FAIL),
+	/* ErrorType cannot be constructed by nullptr */
+	template <TYPE_ALIAS(_ParamType, ErrorType),
+			 ENABLE_IF(!has_constructor<_ParamType, std::nullptr_t>)>
+	inline CSyncPromise(const Ignore &) :
+		CPromiseBase(IGNORE)
+	{
+		PROMISE_DEBUG("CSyncPromise<void, %s>[%d] constructor",
+					  TYPE_NAME(ErrorType),
+					  mPromiseType);
+	}
+
+	/*************************************************
+	 * Succeed case.
+	 *************************************************/
+
+	/* ErrorType can be constructed by nullptr */
+	template <TYPE_ALIAS(_ParamType, ErrorType),
+			 ENABLE_IF(has_constructor<_ParamType, std::nullptr_t>)>
+	inline CSyncPromise(CPromiseBase::Type) :
+		CPromiseBase(SUCCEED),
 		mErrors(nullptr)
 	{
-		PROMISE_DEBUG("CSyncPromise<%s> ignore", TYPE_NAME(ParamType));
+		PROMISE_DEBUG("CSyncPromise<void, %s>[%d] constructor",
+					  TYPE_NAME(ErrorType),
+					  mPromiseType);
 	}
 
-	/* Succeed case */
-	inline CSyncPromise(const ParamType &promise, CPromiseBase::Type = CPromiseBase::SUCCEED) :
-		mResult(CPromiseBase::SUCCEED),
-		mParams(promise),
-		mErrors(nullptr)
+	/* ErrorType can be constructed by nullptr */
+	template <TYPE_ALIAS(_ParamType, ErrorType),
+			 ENABLE_IF(!has_constructor<_ParamType, std::nullptr_t>)>
+	inline CSyncPromise(CPromiseBase::Type) :
+		CPromiseBase(SUCCEED)
 	{
-		PROMISE_DEBUG("CSyncPromise<%s, %s> succeed",
-					  TYPE_NAME(ParamType), TYPE_NAME(ErrorType));
+		PROMISE_DEBUG("CSyncPromise<void, %s>[%d] constructor",
+					  TYPE_NAME(ErrorType),
+					  mPromiseType);
 	}
 
-	/* Failure case. */
-	template <class _T = ParamType,
-			 ENABLE_IF(std::is_same<_T, ParamType>),
-			 ENABLE_IF(has_constructor<_T, std::nullptr_t>)>
-	inline CSyncPromise(const ErrorType &errors, CPromiseBase::Type = CPromiseBase::FAIL) :
-		mResult(CPromiseBase::FAIL),
-		mParams(nullptr),
+	/*************************************************
+	 * Fail case.
+	 *************************************************/
+	inline CSyncPromise(const ErrorType &errors, CPromiseBase::Type = FAIL) :
+		CPromiseBase(FAIL),
 		mErrors(errors)
 	{
-		PROMISE_DEBUG("CSyncPromise<%s, %s> fail",
-					  TYPE_NAME(ParamType), TYPE_NAME(ErrorType));
+		PROMISE_DEBUG("CSyncPromise<void, %s>[%d] constructor",
+					  TYPE_NAME(ErrorType),
+					  mPromiseType);
 	}
 
-	template <class _T = ParamType,
-			 ENABLE_IF(std::is_same<_T, ParamType>),
-			 ENABLE_IF(!has_constructor<_T, std::nullptr_t>)>
-	inline CSyncPromise(const ErrorType &errors, CPromiseBase::Type = CPromiseBase::FAIL) :
-		mResult(CPromiseBase::FAIL),
-		mErrors(errors)
+	/*********************************************************
+	 * If ErrorType is catchable, Catch method is provided.
+	 **********************************************************/
+
+	/* Remove the ErrorType and let Catch method handle it */
+	template <class Fn,
+			 TYPE_ALIAS(_ErrorType, ErrorType),
+			 ENABLE_IF(IS_CATCHABLE(_ErrorType))>
+	inline void Catch(const Fn &fn)
 	{
-		PROMISE_DEBUG("CSyncPromise<%s, %s> fail",
-					  TYPE_NAME(ParamType), TYPE_NAME(ErrorType));
-	}
+		PROMISE_DEBUG("CSyncPromise<void, %s>[%d] constructor",
+					  TYPE_NAME(ErrorType),
+					  mPromiseType);
 
-	/* Now the error is catched, we can remove the [ErrorType] */
-	template <class Fn>
-	inline decltype(auto) Catch(const Fn &fn)
-	{
-		PROMISE_DEBUG("CSyncPromise<%s, %s> Catch",
-					  TYPE_NAME(ParamType), TYPE_NAME(ErrorType));
+		switch (mPromiseType) {
+		case FAIL:
+			mErrors->Catch(fn);
 
-		typedef CSharedPtr<CSyncPromise<ParamType>> PromisePtr;
-
-		/* Succeed case */
-		if (mResult == CPromiseBase::SUCCEED) {
-			return PromisePtr(mParams);
-
-		/* Fail case */
-		} else if (mErrors) {
-			CATCH_TO_PROMISE(PromisePtr, mErrors, fn);
-
-		/* Ignore case */
-		} else {
-			return PromisePtr(CPromiseBase::Ignore());
+		default:
+			return;
 		}
 	}
 
 private:
-	CPromiseBase::Type mResult;
-	ParamType mParams;
 	ErrorType mErrors;
 };
 
-/* Succeed case: promise, void or T.
- * Fail case:    multi parameters. */
-template <class T, class... En>
-class CSyncPromise<T, pack<En...>> :
-	public CSyncPromise<TO_PROMISABLE_TYPE(T),
-						CSharedPtr<CPromiseParams<En...>>>
+
+/* SyncPromise has ParamType and ErrorType.
+ * Then method is used to handle ParamType.
+ * Catch method is used to handle ErrorType. */
+template <class T, class E>
+class CSyncPromise<T, E> :
+	public CPromiseBase,
+	public CThenable,
+	public CCatchable
 {
 	typedef TO_PROMISABLE_TYPE(T) ParamType;
-	typedef CSharedPtr<CPromiseParams<En...>> ErrorType;
-	typedef CSyncPromise<ParamType, ErrorType> Parent;
+	typedef TO_PROMISABLE_TYPE(E) ErrorType;
 
 public:
-	inline CSyncPromise(const CPromiseBase::Ignore &) :
-		Parent(CPromiseBase::Ignore())
+	/**********************************************************
+	 * If the previous Catch method does not reocver the error,
+	 * we provide a method to create a Ignore Promise.
+	 * The Ignore promise will not call Then/Catch method and
+	 * it will only keep creating other Ignore Promise.
+	 **********************************************************/
+
+	/* Both ParamType and ErrorType can be constructed by nullptr */
+	template <TYPE_ALIAS(_ParamType, ParamType),
+			 TYPE_ALIAS(_ErrorType, ErrorType),
+			 ENABLE_IF(has_constructor<_ParamType, std::nullptr_t>),
+			 ENABLE_IF(has_constructor<_ErrorType, std::nullptr_t>)>
+	inline CSyncPromise(const Ignore &) :
+		CPromiseBase(IGNORE),
+		mParams(nullptr),
+		mErrors(nullptr)
 	{
-		/* Does nothing */
+		PROMISE_DEBUG("CSyncPromiseBase<%s, %s>[%d]: Constructor",
+					  TYPE_NAME(ParamType),
+					  TYPE_NAME(ErrorType),
+					  mPromiseType);
 	}
 
-	inline CSyncPromise(const ParamType &promise, CPromiseBase::Type = CPromiseBase::SUCCEED) :
-		Parent(promise, CPromiseBase::SUCCEED)
+	/* ErrorType can be constructed by nullptr */
+	template <TYPE_ALIAS(_ParamType, ParamType),
+			 TYPE_ALIAS(_ErrorType, ErrorType),
+			 ENABLE_IF(!has_constructor<_ParamType, std::nullptr_t>),
+			 ENABLE_IF(has_constructor<_ErrorType, std::nullptr_t>)>
+	inline CSyncPromise(const Ignore &) :
+		CPromiseBase(IGNORE),
+		mErrors(nullptr)
 	{
-		/* Does nothing */
+		PROMISE_DEBUG("CSyncPromiseBase<%s, %s>[%d]: Constructor",
+					  TYPE_NAME(ParamType),
+					  TYPE_NAME(ErrorType),
+					  mPromiseType);
 	}
 
-	inline CSyncPromise(const En & ... en, CPromiseBase::Type = CPromiseBase::FAIL) :
-		Parent(ErrorType(en...), CPromiseBase::FAIL)
-	{
-		/* Does nothing */
-	}
-};
-
-/* Succeed case: promise, void or T.
- * Fail case:    void. */
-template <class T>
-class CSyncPromise<T, pack<void>> :
-	public CSyncPromise<TO_PROMISABLE_TYPE(T),
-						CSharedPtr<CPromiseParams<void>>>
-{
-	typedef TO_PROMISABLE_TYPE(T) ParamType;
-	typedef CSharedPtr<CPromiseParams<void>> ErrorType;
-	typedef CSyncPromise<ParamType, ErrorType> Parent;
-
-public:
-	inline CSyncPromise(const CPromiseBase::Ignore &) :
-		Parent(CPromiseBase::Ignore())
-	{
-		/* Does nothing */
-	}
-
-	inline CSyncPromise(const ParamType &promise, CPromiseBase::Type = CPromiseBase::SUCCEED) :
-		Parent(promise, CPromiseBase::SUCCEED)
-	{
-		/* Does nothing */
-	}
-
-	inline CSyncPromise(CPromiseBase::Type = CPromiseBase::FAIL) :
-		Parent(ErrorType(), CPromiseBase::FAIL)
-	{
-		/* Does nothing */
-	}
-};
-
-
-/* Succeed case: promise parameter.
- * Fail case:    N/A. */
-template <class... Tn>
-class CSyncPromise<CSharedPtr<CPromiseParams<Tn...>>> :
-	public CPromiseBase
-{
-	typedef CSharedPtr<CPromiseParams<Tn...>> ParamType;
-
-public:
-	/* the error comes from the previous promise.
-	 * So we will ignore Then or Catch in this promise.
-	 * Just pass the error to next promise. */
-	inline CSyncPromise(const CPromiseBase::Ignore &) :
+	/* ParamType can be constructed by nullptr */
+	template <TYPE_ALIAS(_ParamType, ParamType),
+			 TYPE_ALIAS(_ErrorType, ErrorType),
+			 ENABLE_IF(has_constructor<_ParamType, std::nullptr_t>),
+			 ENABLE_IF(!has_constructor<_ErrorType, std::nullptr_t>)>
+	inline CSyncPromise(const Ignore &) :
+		CPromiseBase(IGNORE),
 		mParams(nullptr)
 	{
-		PROMISE_DEBUG("CSyncPromise<%s> ignore", TYPE_NAME(ParamType));
+		PROMISE_DEBUG("CSyncPromiseBase<%s, %s>[%d]: Constructor",
+					  TYPE_NAME(ParamType),
+					  TYPE_NAME(ErrorType),
+					  mPromiseType);
 	}
 
-	/* Succeed case */
-	inline CSyncPromise(const ParamType &params) :
+	/* Neither ParamType nor ErrorType can be constructed by nullptr */
+	template <TYPE_ALIAS(_ParamType, ParamType),
+			 TYPE_ALIAS(_ErrorType, ErrorType),
+			 ENABLE_IF(!has_constructor<_ParamType, std::nullptr_t>),
+			 ENABLE_IF(!has_constructor<_ErrorType, std::nullptr_t>)>
+	inline CSyncPromise(const Ignore &) :
+		CPromiseBase(IGNORE)
+	{
+		PROMISE_DEBUG("CSyncPromiseBase<%s, %s>[%d]: Constructor",
+					  TYPE_NAME(ParamType),
+					  TYPE_NAME(ErrorType),
+					  mPromiseType);
+	}
+
+	/*************************************************
+	 * ParamType and ErrorType are the same type,
+	 * PromiseType will be used to decide if the promise
+	 * is succeeded or failed.
+	 *************************************************/
+	template <TYPE_ALIAS(_ParamType, ParamType),
+			 TYPE_ALIAS(_ErrorType, ErrorType),
+			 ENABLE_IF(std::is_same<_ParamType, _ErrorType>)>
+	inline CSyncPromise(const _ParamType &params, CPromiseBase::Type type) :
+		CPromiseBase(type),
+		mParams(params),
+		mErrors(params)
+	{
+		PROMISE_DEBUG("CSyncPromiseBase<%s, %s>[%d]: Constructor",
+					  TYPE_NAME(ParamType),
+					  TYPE_NAME(ErrorType),
+					  mPromiseType);
+	}
+
+	/*************************************************
+	 * ParamType and ErrorType are the different type,
+	 * Promise status is defined by the input parameter.
+	 *************************************************/
+
+	/* Input ParamType.
+	 * ErrorType can be constructed by nullptr */
+	template <TYPE_ALIAS(_ParamType, ParamType),
+			 TYPE_ALIAS(_ErrorType, ErrorType),
+			 ENABLE_IF(!std::is_same<_ParamType, _ErrorType>),
+			 ENABLE_IF(has_constructor<_ErrorType, std::nullptr_t>)>
+	inline CSyncPromise(const _ParamType &params, CPromiseBase::Type = SUCCEED) :
+		CPromiseBase(SUCCEED),
+		mParams(params),
+		mErrors(nullptr)
+	{
+		PROMISE_DEBUG("CSyncPromiseBase<%s, %s>[%d]: Constructor",
+					  TYPE_NAME(ParamType),
+					  TYPE_NAME(ErrorType),
+					  mPromiseType);
+	}
+
+	/* Input ParamType.
+	 * ErrorType cannot be constructed by nullptr */
+	template <TYPE_ALIAS(_ParamType, ParamType),
+			 TYPE_ALIAS(_ErrorType, ErrorType),
+			 ENABLE_IF(!std::is_same<_ParamType, _ErrorType>),
+			 ENABLE_IF(!has_constructor<_ErrorType, std::nullptr_t>)>
+	inline CSyncPromise(const _ParamType &params, CPromiseBase::Type = SUCCEED) :
+		CPromiseBase(SUCCEED),
 		mParams(params)
 	{
-		PROMISE_DEBUG("CSyncPromise<%s> succeed", TYPE_NAME(ParamType));
+		PROMISE_DEBUG("CSyncPromiseBase<%s, %s>[%d]: Constructor",
+					  TYPE_NAME(ParamType),
+					  TYPE_NAME(ErrorType),
+					  mPromiseType);
 	}
 
-	template <class Fn>
-	inline decltype(auto) Then(const Fn &fn)
-	{
-		PROMISE_DEBUG("CSyncPromise<%s> Then", TYPE_NAME(ParamType));
-
-		typedef CSharedPtr<CSyncPromise<FN_RET_TYPE(Fn)>> PromisePtr;
-
-		/* Succeed case */
-		if (mParams) {
-			return ThenToPromise<PromisePtr>(mParams, fn);
-
-		/* Ignore case */
-		} else {
-			return PromisePtr(CPromiseBase::Ignore());
-		}
-	}
-
-private:
-	ParamType mParams;
-};
-
-/* Succeed case: multiple parameters.
- * Fail case:    N/A. */
-template <class... Tn>
-class CSyncPromise<pack<Tn...>> :
-	public CSyncPromise<CSharedPtr<CPromiseParams<Tn...>>>
-{
-	typedef CSharedPtr<CPromiseParams<Tn...>> ParamType;
-	typedef CSyncPromise<ParamType> Parent;
-
-public:
-	inline CSyncPromise(const CPromiseBase::Ignore &) :
-		Parent(CPromiseBase::Ignore())
-	{
-		/* Does nothing */
-	}
-
-	inline CSyncPromise(const Tn & ... tn) :
-		Parent(ParamType(tn...))
-	{
-		/* Does nothing */
-	}
-};
-
-/* Succeed case: void.
- * Fail case:    N/A. */
-template <>
-class CSyncPromise<pack<void>> :
-	public CSyncPromise<CSharedPtr<CPromiseParams<void>>>
-{
-	typedef CSharedPtr<CPromiseParams<void>> ParamType;
-	typedef CSyncPromise<ParamType> Parent;
-
-public:
-	inline CSyncPromise(const CPromiseBase::Ignore &) :
-		Parent(CPromiseBase::Ignore())
-	{
-		/* Does nothing */
-	}
-
-	inline CSyncPromise(void) :
-		Parent(ParamType())
-	{
-		/* Does nothing */
-	}
-};
-
-/* Succeed case: promise parameter.
- * Fail case:    promise parameter. (same type) */
-template <class... Tn>
-class CSyncPromise<CSharedPtr<CPromiseParams<Tn...>>,
-				   CSharedPtr<CPromiseParams<Tn...>>> :
-	public CPromiseBase
-{
-	typedef CSharedPtr<CPromiseParams<Tn...>> ParamType;
-public:
-	/* the error comes from the previous promise.
-	 * So we will ignore Then or Catch in this promise.
-	 * Just pass the error to next promise. */
-	inline CSyncPromise(const CPromiseBase::Ignore &) :
-		mParams(nullptr),
-		mErrors(nullptr),
-		mResult(CPromiseBase::FAIL)
-	{
-		PROMISE_DEBUG("CSyncPromise<%s, %s> ignore",
-					  TYPE_NAME(ParamType), TYPE_NAME(ParamType));
-	}
-
-	/* Succeed/fail case */
-	inline CSyncPromise(const ParamType &params, CPromiseBase::Type result) :
-		mParams(params),
-		mErrors(params),
-		mResult(result)
-	{
-		PROMISE_DEBUG("CSyncPromise<%s, %s> %s",
-					  TYPE_NAME(ParamType), TYPE_NAME(ParamType),
-					  result ? "succeed" : "fail");
-	}
-
-	/* We need to append the ParamType to the Promise
-	 * until it is catched. */
-	template <class Fn>
-	inline decltype(auto) Then(const Fn &fn)
-	{
-		PROMISE_DEBUG("CSyncPromise<%s, %s> Then",
-					  TYPE_NAME(ParamType), TYPE_NAME(ParamType));
-
-		typedef CSharedPtr<CSyncPromise<FN_RET_TYPE(Fn), ParamType>> PromisePtr;
-
-		/* Succeed case */
-		if (mResult == CPromiseBase::SUCCEED) {
-			return ThenToPromise<PromisePtr>(mParams, fn);
-
-		/* Fail case */
-		} else if (mErrors) {
-			return PromisePtr(mErrors, CPromiseBase::FAIL);
-
-		/* Ignore case */
-		} else {
-			return PromisePtr(CPromiseBase::Ignore());
-		}
-	}
-
-	/* Now the error is catched, we can remove the [ParamType] */
-	template <class Fn>
-	inline decltype(auto) Catch(const Fn &fn)
-	{
-		PROMISE_DEBUG("CSyncPromise<%s, %s> Catch",
-					  TYPE_NAME(ParamType), TYPE_NAME(ParamType));
-
-		/* From CSyncPromise<ParamType, ErrorType>
-		 * to CSyncPromise<ParamType> */
-		typedef CSharedPtr<CSyncPromise<ParamType>> PromisePtr;
-
-		/* Succeed case */
-		if (mResult == CPromiseBase::SUCCEED) {
-			return PromisePtr(mParams);
-
-		/* Fail case */
-		} else if (mErrors) {
-			CATCH_TO_PROMISE(PromisePtr, mErrors, fn);
-
-		/* Ignore case */
-		} else {
-			return PromisePtr(CPromiseBase::Ignore());
-		}
-	}
-
-private:
-	ParamType mParams;
-	ParamType mErrors;
-	CPromiseBase::Type mResult;
-};
-
-/* Succeed case: promise parameter.
- * Fail case:    promise parameter. */
-template <class... Tn, class... En>
-class CSyncPromise<CSharedPtr<CPromiseParams<Tn...>>,
-				   CSharedPtr<CPromiseParams<En...>>> :
-	public CPromiseBase
-{
-	typedef CSharedPtr<CPromiseParams<Tn...>> ParamType;
-	typedef CSharedPtr<CPromiseParams<En...>> ErrorType;
-
-public:
-	/* the error comes from the previous promise.
-	 * So we will ignore Then or Catch in this promise.
-	 * Just pass the error to next promise. */
-	inline CSyncPromise(const CPromiseBase::Ignore &) :
-		mParams(nullptr),
-		mErrors(nullptr)
-	{
-		PROMISE_DEBUG("CSyncPromise<%s, %s> ignore",
-					  TYPE_NAME(ParamType), TYPE_NAME(ErrorType));
-	}
-
-	/* Succeed case */
-	inline CSyncPromise(const ParamType &params, CPromiseBase::Type = CPromiseBase::SUCCEED) :
-		mParams(params),
-		mErrors(nullptr)
-	{
-		PROMISE_DEBUG("CSyncPromise<%s, %s> succeed",
-					  TYPE_NAME(ParamType), TYPE_NAME(ErrorType));
-	}
-
-	/* Failure case. */
-	inline CSyncPromise(const ErrorType &errors, CPromiseBase::Type = CPromiseBase::FAIL) :
+	/* Input ErrorType.
+	 * ParamType can be constructed by nullptr */
+	template <TYPE_ALIAS(_ParamType, ParamType),
+			 TYPE_ALIAS(_ErrorType, ErrorType),
+			 ENABLE_IF(!std::is_same<_ParamType, _ErrorType>),
+			 ENABLE_IF(has_constructor<_ParamType, std::nullptr_t>)>
+	inline CSyncPromise(const _ErrorType &errors, CPromiseBase::Type = FAIL) :
+		CPromiseBase(FAIL),
 		mParams(nullptr),
 		mErrors(errors)
 	{
-		PROMISE_DEBUG("CSyncPromise<%s, %s> fail",
-					  TYPE_NAME(ParamType), TYPE_NAME(ErrorType));
+		PROMISE_DEBUG("CSyncPromiseBase<%s, %s>[%d]: Constructor",
+					  TYPE_NAME(ParamType),
+					  TYPE_NAME(ErrorType),
+					  mPromiseType);
 	}
 
-	/* We need to append the ErrorType to the Promise
-	 * until it is catched. */
-	template <class Fn>
-	inline decltype(auto) Then(const Fn &fn)
+	/* Input ErrorType.
+	 * ParamType cannot be constructed by nullptr */
+	template <TYPE_ALIAS(_ParamType, ParamType),
+			 TYPE_ALIAS(_ErrorType, ErrorType),
+			 ENABLE_IF(!std::is_same<_ParamType, _ErrorType>),
+			 ENABLE_IF(!has_constructor<_ParamType, std::nullptr_t>)>
+	inline CSyncPromise(const _ErrorType &errors, CPromiseBase::Type = FAIL) :
+		CPromiseBase(FAIL),
+		mErrors(errors)
 	{
-		PROMISE_DEBUG("CSyncPromise<%s, %s> Then",
-					  TYPE_NAME(ParamType), TYPE_NAME(ErrorType));
+		PROMISE_DEBUG("CSyncPromiseBase<%s, %s>[%d]: Constructor",
+					  TYPE_NAME(ParamType),
+					  TYPE_NAME(ErrorType),
+					  mPromiseType);
+	}
 
-		typedef CSharedPtr<CSyncPromise<FN_RET_TYPE(Fn), ErrorType>> PromisePtr;
+	/*********************************************************
+	 * If ParamType is thenable, Then method is provided.
+	 **********************************************************/
 
-		/* Succeed case */
-		if (mParams) {
-			return ThenToPromise<PromisePtr>(mParams, fn);
+	/* Append the ErrorType to the return type
+	 * regardless if the return type is a promise or not */
+	template <class Fn,
+			 TYPE_ALIAS(_ParamType, ParamType),
+			 TYPE_ALIAS(_ErrorType, ErrorType),
+			 ENABLE_IF(IS_THENABLE(_ParamType)),
+			 TYPE_ALIAS(RetType, FN_RET_TYPE(Fn)),
+			 TYPE_ALIAS(PromisePtr, CSharedPtr<CSyncPromise<RetType, _ErrorType>>)>
+	inline PromisePtr Then(const Fn &fn)
+	{
+		PROMISE_DEBUG("CSyncPromiseBase<%s, %s>[%d]: Then",
+					  TYPE_NAME(ParamType),
+					  TYPE_NAME(ErrorType),
+					  mPromiseType);
 
-		/* Fail case */
-		} else if (mErrors) {
-			return PromisePtr(mErrors, CPromiseBase::FAIL);
+		switch (mPromiseType) {
+		case SUCCEED:
+			return ThenCreatePromise<PromisePtr>(mParams, fn);
 
-		/* Ignore case */
-		} else {
+		case FAIL:
+			return PromisePtr(mErrors, FAIL);
+
+		case IGNORE:
+		default:
 			return PromisePtr(CPromiseBase::Ignore());
 		}
 	}
 
-	/* Now the error is catched, we can remove the [ErrorType] */
-	template <class Fn>
-	inline decltype(auto) Catch(const Fn &fn)
+	/*********************************************************
+	 * If ErrorType is catchable, Catch method is provided.
+	 **********************************************************/
+
+	/* If ParamType is a promise, return it directly */
+	template <class Fn,
+			 TYPE_ALIAS(_ParamType, ParamType),
+			 TYPE_ALIAS(_ErrorType, ErrorType),
+			 ENABLE_IF(IS_CATCHABLE(_ErrorType)),
+			 ENABLE_IF(IS_PROMISABLE(_ParamType)),
+			 TYPE_ALIAS(PromisePtr, ParamType)>
+	inline PromisePtr Catch(const Fn &fn)
 	{
-		PROMISE_DEBUG("CSyncPromise<%s, %s> Catch",
+		PROMISE_DEBUG("CSyncPromiseBase<%s, %s>[%d]: Catch",
 					  TYPE_NAME(ParamType),
-					  TYPE_NAME(ErrorType));
+					  TYPE_NAME(ErrorType),
+					  mPromiseType);
 
-		/* From CSyncPromise<ParamType, ErrorType>
-		 * to CSyncPromise<ParamType> */
-		typedef CSharedPtr<CSyncPromise<ParamType>> PromisePtr;
+		switch (mPromiseType) {
+		case SUCCEED:
+			return mParams;
 
-		/* Succeed case */
-		if (mParams) {
-			return PromisePtr(mParams);
+		case FAIL:
+			return CatchCreatePromise<PromisePtr>(mErrors, fn);
 
-		/* Fail case */
-		} else if (mErrors) {
-			CATCH_TO_PROMISE(PromisePtr, mErrors, fn);
+		case IGNORE:
+		default:
+			return PromisePtr(CPromiseBase::Ignore());
+		}
+	}
 
-		/* Ignore case */
-		} else {
+	/* If ParamType is a promise, create the CSyncPromise<ParamType> */
+	template <class Fn,
+			 TYPE_ALIAS(_ParamType, ParamType),
+			 TYPE_ALIAS(_ErrorType, ErrorType),
+			 ENABLE_IF(!IS_PROMISABLE(_ParamType)),
+			 ENABLE_IF(IS_CATCHABLE(_ErrorType)),
+			 TYPE_ALIAS(PromisePtr, CSharedPtr<CSyncPromise<_ParamType>>)>
+	inline PromisePtr Catch(const Fn &fn)
+	{
+		PROMISE_DEBUG("CSyncPromiseBase<%s, %s>[%d]: Catch",
+					  TYPE_NAME(ParamType),
+					  TYPE_NAME(ErrorType),
+					  mPromiseType);
+
+		switch (mPromiseType) {
+		case SUCCEED:
+			return PromisePtr(mParams, SUCCEED);
+
+		case FAIL:
+			return CatchCreatePromise<PromisePtr>(mErrors, fn);
+
+		case IGNORE:
+		default:
 			return PromisePtr(CPromiseBase::Ignore());
 		}
 	}
@@ -720,154 +511,6 @@ public:
 private:
 	ParamType mParams;
 	ErrorType mErrors;
-};
-
-/* Succeed case: multiple parameters.
- * Fail case:    multiple parameters. (different type) */
-template <class... Tn, class... En>
-class CSyncPromise<pack<Tn...>, pack<En...>> :
-	public CSyncPromise<CSharedPtr<CPromiseParams<Tn...>>,
-						CSharedPtr<CPromiseParams<En...>>>
-{
-	typedef CSharedPtr<CPromiseParams<Tn...>> ParamType;
-	typedef CSharedPtr<CPromiseParams<En...>> ErrorType;
-	typedef CSyncPromise<ParamType, ErrorType> Parent;
-
-public:
-	inline CSyncPromise(const CPromiseBase::Ignore &) :
-		Parent(CPromiseBase::Ignore())
-	{
-		/* Does nothing */
-	}
-
-	/* Succeed case */
-	inline CSyncPromise(const Tn & ... tn, CPromiseBase::Type = CPromiseBase::SUCCEED) :
-		Parent(ParamType(tn...), CPromiseBase::SUCCEED)
-	{
-		/* Does nothing */
-	}
-
-	/* Failure case. */
-	inline CSyncPromise(const En & ... en, CPromiseBase::Type = CPromiseBase::FAIL) :
-		Parent(ErrorType(en...), CPromiseBase::FAIL)
-	{
-		/* Does nothing */
-	}
-};
-
-/* Succeed case: multiple parameters.
- * Fail case:    multiple parameters. (sam type) */
-template <class... Tn>
-class CSyncPromise<pack<Tn...>, pack<Tn...>> :
-	public CSyncPromise<CSharedPtr<CPromiseParams<Tn...>>,
-						CSharedPtr<CPromiseParams<Tn...>>>
-{
-	typedef CSharedPtr<CPromiseParams<Tn...>> ParamType;
-	typedef CSyncPromise<ParamType, ParamType> Parent;
-
-public:
-	inline CSyncPromise(const CPromiseBase::Ignore &) :
-		Parent(CPromiseBase::Ignore())
-	{
-		/* Does nothing */
-	}
-
-	/* Succeed case */
-	inline CSyncPromise(const Tn & ... tn, CPromiseBase::Type result) :
-		Parent(ParamType(tn...), result)
-	{
-		/* Does nothing */
-	}
-};
-
-/* Succeed case: void.
- * Fail case:    multiple parameters. */
-template <class... En>
-class CSyncPromise<pack<void>, pack<En...>> :
-	public CSyncPromise<CSharedPtr<CPromiseParams<void>>,
-						CSharedPtr<CPromiseParams<En...>>>
-{
-	typedef CSharedPtr<CPromiseParams<void>> ParamType;
-	typedef CSharedPtr<CPromiseParams<En...>> ErrorType;
-	typedef CSyncPromise<ParamType, ErrorType> Parent;
-
-public:
-	inline CSyncPromise(const CPromiseBase::Ignore &) :
-		Parent(CPromiseBase::Ignore())
-	{
-		/* Does nothing */
-	}
-
-	/* Succeed case */
-	inline CSyncPromise(CPromiseBase::Type = CPromiseBase::SUCCEED) :
-		Parent(ParamType(), CPromiseBase::SUCCEED)
-	{
-		/* Does nothing */
-	}
-
-	/* Failure case. */
-	inline CSyncPromise(const En & ... en, CPromiseBase::Type = CPromiseBase::FAIL) :
-		Parent(ErrorType(en...), CPromiseBase::FAIL)
-	{
-		/* Does nothing */
-	}
-};
-
-/* Succeed case: multiple parameters.
- * Fail case:    void. */
-template <class... Tn>
-class CSyncPromise<pack<Tn...>, pack<void>> :
-	public CSyncPromise<CSharedPtr<CPromiseParams<Tn...>>,
-						CSharedPtr<CPromiseParams<void>>>
-{
-	typedef CSharedPtr<CPromiseParams<Tn...>> ParamType;
-	typedef CSharedPtr<CPromiseParams<void>> ErrorType;
-	typedef CSyncPromise<ParamType, ErrorType> Parent;
-
-public:
-	inline CSyncPromise(const CPromiseBase::Ignore &) :
-		Parent(CPromiseBase::Ignore())
-	{
-		/* Does nothing */
-	}
-
-	/* Succeed case */
-	inline CSyncPromise(const Tn & ... tn, CPromiseBase::Type = CPromiseBase::SUCCEED) :
-		Parent(ParamType(tn...), CPromiseBase::SUCCEED)
-	{
-		/* Does nothing */
-	}
-
-	/* Failure case. */
-	inline CSyncPromise(CPromiseBase::Type = CPromiseBase::FAIL) :
-		Parent(ErrorType(), CPromiseBase::FAIL)
-	{
-		/* Does nothing */
-	}
-};
-
-/* Succeed case: void.
- * Fail case:    void. */
-template <>
-class CSyncPromise<pack<void>, pack<void>> :
-	public CSyncPromise<CSharedPtr<CPromiseParams<void>>,
-						CSharedPtr<CPromiseParams<void>>>
-{
-	typedef CSharedPtr<CPromiseParams<void>> ParamType;
-	typedef CSyncPromise<ParamType, ParamType> Parent;
-
-public:
-	inline CSyncPromise(const CPromiseBase::Ignore &) :
-		Parent(CPromiseBase::Ignore())
-	{
-		/* Does nothing */
-	}
-
-	inline CSyncPromise(CPromiseBase::Type result) :
-		Parent(ParamType(), result)
-	{
-		/* Does nothing */
-	}
 };
 
 #endif /* __SYNC_PROMISE_BASE_HPP__ */
