@@ -50,7 +50,7 @@ struct CatchToPromise<void>
 			 class Fn>
 	static inline PromisePtr Convert(ErrorType &&t, Fn &&fn)
 	{
-		t->Run(fn);
+		t->Catch(fn);
 		return PromisePtr(CPromiseFail());
 	}
 };
@@ -65,7 +65,7 @@ struct CatchToPromise<std::nullptr_t>
 			 class Fn>
 	static inline PromisePtr Convert(ErrorType &&t, Fn &&fn)
 	{
-		t->Run(fn);
+		t->Catch(fn);
 		return PromisePtr(CPromiseFail());
 	}
 };
@@ -80,12 +80,12 @@ struct CatchToPromise<T>
 			 class Fn>
 	static inline PromisePtr Convert(ErrorType &&t, Fn &&fn)
 	{
-		return PromisePtr(t->Run(fn));
+		return PromisePtr(t->Catch(fn));
 	}
 };
 
 #define CATCH_TO_PROMISE(PromisePtr, mError, fn) \
-	using RetType = decltype(mErrors->Run(fn)); \
+	using RetType = decltype(mErrors->Catch(fn)); \
 	using CConverter = CatchToPromise<RetType>; \
 	return CConverter::template Convert<PromisePtr>(mErrors, fn);
 
@@ -100,7 +100,6 @@ struct _ThenToPromise<void>
 	template <class PromisePtr,
 			 class PromiseType,
 			 class Fn,
-			 ENABLE_IF(IS_PROMISABLE(PromiseType)),
 			 ENABLE_IF(has_constructor<PromisePtr, bool>)>
 	static inline PromisePtr Convert(PromiseType &&t, Fn &&fn)
 	{
@@ -111,36 +110,12 @@ struct _ThenToPromise<void>
 	template <class PromisePtr,
 			 class PromiseType,
 			 class Fn,
-			 ENABLE_IF(!IS_PROMISABLE(PromiseType)),
-			 ENABLE_IF(has_constructor<PromisePtr, bool>)>
-	static inline PromisePtr Convert(PromiseType &&t, Fn &&fn)
-	{
-		t->Run(fn);
-		return PromisePtr(true);
-	}
-
-	template <class PromisePtr,
-			 class PromiseType,
-			 class Fn,
-			 ENABLE_IF(IS_PROMISABLE(PromiseType)),
 			 ENABLE_IF(!has_constructor<PromisePtr, bool>)>
 	static inline PromisePtr Convert(PromiseType &&t, Fn &&fn)
 	{
 		t->Then(fn);
 		return PromisePtr();
 	}
-
-	template <class PromisePtr,
-			 class PromiseType,
-			 class Fn,
-			 ENABLE_IF(!IS_PROMISABLE(PromiseType)),
-			 ENABLE_IF(!has_constructor<PromisePtr, bool>)>
-	static inline PromisePtr Convert(PromiseType &&t, Fn &&fn)
-	{
-		t->Run(fn);
-		return PromisePtr();
-	}
-
 };
 
 /* If Catch returns PromisePtr,
@@ -151,7 +126,6 @@ struct _ThenToPromise<T>
 	template <class PromisePtr,
 			 class PromiseType,
 			 class Fn,
-			 ENABLE_IF(IS_PROMISABLE(PromiseType)),
 			 class RetType = T,
 			 ENABLE_IF(has_constructor<PromisePtr, RetType, bool>)>
 	static inline PromisePtr Convert(PromiseType &&t, Fn &&fn)
@@ -162,34 +136,11 @@ struct _ThenToPromise<T>
 	template <class PromisePtr,
 			 class PromiseType,
 			 class Fn,
-			 ENABLE_IF(!IS_PROMISABLE(PromiseType)),
-			 class RetType = T,
-			 ENABLE_IF(has_constructor<PromisePtr, RetType, bool>)>
-	static inline PromisePtr Convert(PromiseType &&t, Fn &&fn)
-	{
-		return PromisePtr(t->Run(fn), true);
-	}
-
-	template <class PromisePtr,
-			 class PromiseType,
-			 class Fn,
-			 ENABLE_IF(IS_PROMISABLE(PromiseType)),
 			 class RetType = T,
 			 ENABLE_IF(!has_constructor<PromisePtr, RetType, bool>)>
 	static inline PromisePtr Convert(PromiseType &&t, Fn &&fn)
 	{
 		return PromisePtr(t->Then(fn));
-	}
-
-	template <class PromisePtr,
-			 class PromiseType,
-			 class Fn,
-			 ENABLE_IF(!IS_PROMISABLE(PromiseType)),
-			 class RetType = T,
-			 ENABLE_IF(!has_constructor<PromisePtr, RetType, bool>)>
-	static inline PromisePtr Convert(PromiseType &&t, Fn &&fn)
-	{
-		return PromisePtr(t->Run(fn));
 	}
 };
 
@@ -211,7 +162,7 @@ template <class PromisePtr,
 		 ENABLE_IF(!IS_PROMISABLE(ParamType))>
 inline PromisePtr ThenToPromise(ParamType &&params, Fn &&fn)
 {
-	using RetType = decltype(params->Run(fn));
+	using RetType = decltype(params->Then(fn));
 	using CConverter = _ThenToPromise<RetType>;
 
 	return CConverter::template Convert<PromisePtr>(params, fn);

@@ -24,6 +24,9 @@
 
 #include "Promisable.hpp"
 
+#define TO_PROMISABLE_TYPE(t) \
+	REMOVE_ARRAY(REMOVE_REFERENCE(t))
+
 template <class... T>
 class CPromiseParams {};
 
@@ -37,7 +40,13 @@ public:
 	}
 
 	template <class Fn>
-	inline decltype(auto) Run(const Fn &fn)
+	inline decltype(auto) Then(const Fn &fn)
+	{
+		return fn();
+	}
+
+	template <class Fn>
+	inline decltype(auto) Catch(const Fn &fn)
 	{
 		return fn();
 	}
@@ -53,23 +62,28 @@ public:
 	}
 
 	template <class Fn>
-	inline decltype(auto) Run(const Fn &fn)
+	inline decltype(auto) Then(const Fn &fn)
 	{
-		return RunPromise(fn);
+		return ThenPromise(fn);
 	}
 
-#if 0
-	template <class T1>
-	inline T1 Convert(void) const
+	template <class Fn>
+	inline decltype(auto) Catch(const Fn &fn)
 	{
-		throw ES("Unknown input value");
+		return CatchPromise(fn);
 	}
-#endif
 
 protected:
 	template <class Fn,
 			 class... _Tn>
-	inline decltype(auto) RunPromise(const Fn &fn, _Tn && ... tn)
+	inline decltype(auto) ThenPromise(const Fn &fn, _Tn && ... tn)
+	{
+		return fn(tn...);
+	}
+
+	template <class Fn,
+			 class... _Tn>
+	inline decltype(auto) CatchPromise(const Fn &fn, _Tn && ... tn)
 	{
 		return fn(tn...);
 	}
@@ -80,37 +94,27 @@ class CPromiseParams<T, Tn...> :
 	public CPromiseParams<Tn...>
 {
 	typedef CPromiseParams<Tn...> Parent;
-	typedef PROMISABLE_TYPE(T) _T;
+	typedef TO_PROMISABLE_TYPE(T) _T;
 
 public:
 	inline CPromiseParams(const _T &t,
-						 const PROMISABLE_TYPE(Tn) & ... tn) :
+						  const TO_PROMISABLE_TYPE(Tn) & ... tn) :
 		Parent(tn...),
 		mArg(t)
 	{
 		PROMISE_DEBUG("CPromiseParams<%s>", TYPE_NAME(T));
 	}
 
-#if 0
-	template <class T1,
-			 ENABLE_IF(std::is_same<T1, T>)>
-	inline T1 Convert(void) const
+	template <class Fn>
+	inline decltype(auto) Then(const Fn &fn)
 	{
-		return mArg;
+		return ThenPromise(fn);
 	}
-
-	template <class T1,
-			 ENABLE_IF(!std::is_same<T1, T>)>
-	inline T1 Convert(void) const
-	{
-		return Parent::template Convert<T1>();
-	}
-#endif
 
 	template <class Fn>
-	inline decltype(auto) Run(const Fn &fn)
+	inline decltype(auto) Catch(const Fn &fn)
 	{
-		return RunPromise(fn);
+		return CatchPromise(fn);
 	}
 
 protected:
@@ -118,10 +122,10 @@ protected:
 			 class... _Tn,
 			 class K = _T,
 			 ENABLE_IF(IS_PROMISABLE(K))>
-	inline decltype(auto) RunPromise(const Fn &fn, _Tn && ... tn)
+	inline decltype(auto) ThenPromise(const Fn &fn, _Tn && ... tn)
 	{
 		return mArg->Then([&](const auto & ... _tn) {
-			return Parent::RunPromise(fn, tn..., _tn...);
+			return Parent::ThenPromise(fn, tn..., _tn...);
 		});
 	}
 
@@ -129,9 +133,29 @@ protected:
 			 class... _Tn,
 			 class K = _T,
 			 ENABLE_IF(!IS_PROMISABLE(K))>
-	inline decltype(auto) RunPromise(const Fn &fn, _Tn && ... tn)
+	inline decltype(auto) ThenPromise(const Fn &fn, _Tn && ... tn)
 	{
-		return Parent::RunPromise(fn, tn..., mArg);
+		return Parent::ThenPromise(fn, tn..., mArg);
+	}
+
+	template <class Fn,
+			 class... _Tn,
+			 class K = _T,
+			 ENABLE_IF(IS_PROMISABLE(K))>
+	inline decltype(auto) CatchPromise(const Fn &fn, _Tn && ... tn)
+	{
+		return mArg->Catch([&](const auto & ... _tn) {
+			return Parent::CatchPromise(fn, tn..., _tn...);
+		});
+	}
+
+	template <class Fn,
+			 class... _Tn,
+			 class K = _T,
+			 ENABLE_IF(!IS_PROMISABLE(K))>
+	inline decltype(auto) CatchPromise(const Fn &fn, _Tn && ... tn)
+	{
+		return Parent::CatchPromise(fn, tn..., mArg);
 	}
 
 private:

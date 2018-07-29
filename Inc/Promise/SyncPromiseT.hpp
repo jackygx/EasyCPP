@@ -245,7 +245,7 @@ template <class T>
 class CSyncPromise<T> :
 	public CPromisable
 {
-	typedef PROMISABLE_TYPE(T) ParamType;
+	typedef TO_PROMISABLE_TYPE(T) ParamType;
 
 public:
 	/* the error comes from the previous promise.
@@ -300,7 +300,7 @@ template <class T, class... En>
 class CSyncPromise<T, CSharedPtr<CPromiseParams<En...>>> :
 	public CPromisable
 {
-	typedef PROMISABLE_TYPE(T) ParamType;
+	typedef TO_PROMISABLE_TYPE(T) ParamType;
 	typedef CSharedPtr<CPromiseParams<En...>> ErrorType;
 
 public:
@@ -395,10 +395,10 @@ private:
  * Fail case:    multi parameters. */
 template <class T, class... En>
 class CSyncPromise<T, pack<En...>> :
-	public CSyncPromise<PROMISABLE_TYPE(T),
+	public CSyncPromise<TO_PROMISABLE_TYPE(T),
 						CSharedPtr<CPromiseParams<En...>>>
 {
-	typedef PROMISABLE_TYPE(T) ParamType;
+	typedef TO_PROMISABLE_TYPE(T) ParamType;
 	typedef CSharedPtr<CPromiseParams<En...>> ErrorType;
 	typedef CSyncPromise<ParamType, ErrorType> Parent;
 
@@ -426,10 +426,10 @@ public:
  * Fail case:    void. */
 template <class T>
 class CSyncPromise<T, pack<void>> :
-	public CSyncPromise<PROMISABLE_TYPE(T),
+	public CSyncPromise<TO_PROMISABLE_TYPE(T),
 						CSharedPtr<CPromiseParams<void>>>
 {
-	typedef PROMISABLE_TYPE(T) ParamType;
+	typedef TO_PROMISABLE_TYPE(T) ParamType;
 	typedef CSharedPtr<CPromiseParams<void>> ErrorType;
 	typedef CSyncPromise<ParamType, ErrorType> Parent;
 
