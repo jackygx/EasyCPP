@@ -28,6 +28,13 @@
 class CPromiseBase
 {
 public:
+	/* This struct is used to specify a situation
+	 * that the previous promise has failed and
+	 * the Catch function does not recover.
+	 * Then the new promise will be ignore.
+	 * Neither Then nor Catch method will be called. */
+	struct Ignore {};
+
 	enum Type {
 		SUCCEED,
 		FAIL,
@@ -35,6 +42,12 @@ public:
 	};
 
 public:
+	CPromiseBase(const Ignore &) :
+		mPromiseType(IGNORE)
+	{
+		/* Does nothing */
+	}
+
 	CPromiseBase(enum Type type = IGNORE) :
 		mPromiseType(type)
 	{

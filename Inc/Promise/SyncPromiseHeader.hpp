@@ -23,20 +23,6 @@
 template <class... Tn>
 class CSyncPromise {};
 
-/* This struct is used to specify a situation
- * that the previous promise has failed and
- * the Catch function does not recover.
- * Then the new promise will be ignore.
- * Neither Then nor Catch method will be called. */
-class CPromiseFail
-{
-public:
-	CPromiseFail(void)
-	{
-		/* Does nothing */
-	}
-};
-
 template <class... T>
 struct CatchToPromise {};
 
@@ -51,7 +37,7 @@ struct CatchToPromise<void>
 	static inline PromisePtr Convert(ErrorType &&t, Fn &&fn)
 	{
 		t->Catch(fn);
-		return PromisePtr(CPromiseFail());
+		return PromisePtr(CPromiseBase::Ignore());
 	}
 };
 
@@ -66,7 +52,7 @@ struct CatchToPromise<std::nullptr_t>
 	static inline PromisePtr Convert(ErrorType &&t, Fn &&fn)
 	{
 		t->Catch(fn);
-		return PromisePtr(CPromiseFail());
+		return PromisePtr(CPromiseBase::Ignore());
 	}
 };
 

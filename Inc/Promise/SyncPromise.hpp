@@ -32,7 +32,7 @@ public:
 	/* the error comes from the previous promise.
 	 * So we will ignore Then or Catch in this promise.
 	 * Just pass the error to next promise. */
-	inline CSyncPromise(const CPromiseFail &) :
+	inline CSyncPromise(const CPromiseBase::Ignore &) :
 		mParams(nullptr)
 	{
 		PROMISE_DEBUG("CSyncPromise<%s> ignore", TYPE_NAME(ParamType));
@@ -58,7 +58,7 @@ public:
 
 		/* Ignore case */
 		} else {
-			return PromisePtr(CPromiseFail());
+			return PromisePtr(CPromiseBase::Ignore());
 		}
 	}
 
@@ -80,7 +80,7 @@ public:
 	/* the error comes from the previous promise.
 	 * So we will ignore Then or Catch in this promise.
 	 * Just pass the error to next promise. */
-	inline CSyncPromise(const CPromiseFail &) :
+	inline CSyncPromise(const CPromiseBase::Ignore &) :
 		mParams(nullptr),
 		mErrors(nullptr)
 	{
@@ -127,7 +127,7 @@ public:
 
 		/* Ignore case */
 		} else {
-			return PromisePtr(CPromiseFail());
+			return PromisePtr(CPromiseBase::Ignore());
 		}
 	}
 
@@ -151,7 +151,7 @@ public:
 
 		/* Ignore case */
 		} else {
-			return PromisePtr(CPromiseFail());
+			return PromisePtr(CPromiseBase::Ignore());
 		}
 	}
 
@@ -167,7 +167,7 @@ class CSyncPromise<void> :
 	public CPromiseBase
 {
 public:
-	inline CSyncPromise(const CPromiseFail &)
+	inline CSyncPromise(const CPromiseBase::Ignore &)
 	{
 		PROMISE_DEBUG("CSyncPromise<void> ignore");
 	}
@@ -194,7 +194,7 @@ public:
 	/* the error comes from the previous promise.
 	 * So we will ignore Then or Catch in this promise.
 	 * Just pass the error to next promise. */
-	inline CSyncPromise(const CPromiseFail &) :
+	inline CSyncPromise(const CPromiseBase::Ignore &) :
 		mErrors(nullptr)
 	{
 		PROMISE_DEBUG("CSyncPromise<void, %s> ignore", TYPE_NAME(ErrorType));
@@ -248,7 +248,7 @@ public:
 	template <class _T = ParamType,
 			 ENABLE_IF(std::is_same<_T, ParamType>),
 			 ENABLE_IF(has_constructor<_T, std::nullptr_t>)>
-	inline CSyncPromise(const CPromiseFail &) :
+	inline CSyncPromise(const CPromiseBase::Ignore &) :
 		mResult(false),
 		mParams(nullptr)
 	{
@@ -258,7 +258,7 @@ public:
 	template <class _T = ParamType,
 			 ENABLE_IF(std::is_same<_T, ParamType>),
 			 ENABLE_IF(!has_constructor<_T, std::nullptr_t>)>
-	inline CSyncPromise(const CPromiseFail &) :
+	inline CSyncPromise(const CPromiseBase::Ignore &) :
 		mResult(false)
 	{
 		PROMISE_DEBUG("CSyncPromise<%s> ignore", TYPE_NAME(ParamType));
@@ -304,7 +304,7 @@ public:
 	template <class _T = ParamType,
 			 ENABLE_IF(std::is_same<_T, ParamType>),
 			 ENABLE_IF(has_constructor<_T, std::nullptr_t>)>
-	inline CSyncPromise(const CPromiseFail &) :
+	inline CSyncPromise(const CPromiseBase::Ignore &) :
 		mResult(false),
 		mParams(nullptr),
 		mErrors(nullptr)
@@ -315,7 +315,7 @@ public:
 	template <class _T = ParamType,
 			 ENABLE_IF(std::is_same<_T, ParamType>),
 			 ENABLE_IF(!has_constructor<_T, std::nullptr_t>)>
-	inline CSyncPromise(const CPromiseFail &) :
+	inline CSyncPromise(const CPromiseBase::Ignore &) :
 		mResult(false),
 		mErrors(nullptr)
 	{
@@ -375,7 +375,7 @@ public:
 
 		/* Ignore case */
 		} else {
-			return PromisePtr(CPromiseFail());
+			return PromisePtr(CPromiseBase::Ignore());
 		}
 	}
 
@@ -397,8 +397,8 @@ class CSyncPromise<T, pack<En...>> :
 	typedef CSyncPromise<ParamType, ErrorType> Parent;
 
 public:
-	inline CSyncPromise(const CPromiseFail &fail) :
-		Parent(fail)
+	inline CSyncPromise(const CPromiseBase::Ignore &) :
+		Parent(CPromiseBase::Ignore())
 	{
 		/* Does nothing */
 	}
@@ -428,8 +428,8 @@ class CSyncPromise<T, pack<void>> :
 	typedef CSyncPromise<ParamType, ErrorType> Parent;
 
 public:
-	inline CSyncPromise(const CPromiseFail &fail) :
-		Parent(fail)
+	inline CSyncPromise(const CPromiseBase::Ignore &) :
+		Parent(CPromiseBase::Ignore())
 	{
 		/* Does nothing */
 	}
@@ -460,7 +460,7 @@ public:
 	/* the error comes from the previous promise.
 	 * So we will ignore Then or Catch in this promise.
 	 * Just pass the error to next promise. */
-	inline CSyncPromise(const CPromiseFail) :
+	inline CSyncPromise(const CPromiseBase::Ignore &) :
 		mParams(nullptr)
 	{
 		PROMISE_DEBUG("CSyncPromise<%s> ignore", TYPE_NAME(ParamType));
@@ -486,7 +486,7 @@ public:
 
 		/* Ignore case */
 		} else {
-			return PromisePtr(CPromiseFail());
+			return PromisePtr(CPromiseBase::Ignore());
 		}
 	}
 
@@ -504,8 +504,8 @@ class CSyncPromise<pack<Tn...>> :
 	typedef CSyncPromise<ParamType> Parent;
 
 public:
-	inline CSyncPromise(const CPromiseFail &fail) :
-		Parent(fail)
+	inline CSyncPromise(const CPromiseBase::Ignore &) :
+		Parent(CPromiseBase::Ignore())
 	{
 		/* Does nothing */
 	}
@@ -527,8 +527,8 @@ class CSyncPromise<pack<void>> :
 	typedef CSyncPromise<ParamType> Parent;
 
 public:
-	inline CSyncPromise(const CPromiseFail &fail) :
-		Parent(fail)
+	inline CSyncPromise(const CPromiseBase::Ignore &) :
+		Parent(CPromiseBase::Ignore())
 	{
 		/* Does nothing */
 	}
@@ -552,7 +552,7 @@ public:
 	/* the error comes from the previous promise.
 	 * So we will ignore Then or Catch in this promise.
 	 * Just pass the error to next promise. */
-	inline CSyncPromise(const CPromiseFail &) :
+	inline CSyncPromise(const CPromiseBase::Ignore &) :
 		mParams(nullptr),
 		mErrors(nullptr),
 		mResult(false)
@@ -592,7 +592,7 @@ public:
 
 		/* Ignore case */
 		} else {
-			return PromisePtr(CPromiseFail());
+			return PromisePtr(CPromiseBase::Ignore());
 		}
 	}
 
@@ -617,7 +617,7 @@ public:
 
 		/* Ignore case */
 		} else {
-			return PromisePtr(CPromiseFail());
+			return PromisePtr(CPromiseBase::Ignore());
 		}
 	}
 
@@ -641,7 +641,7 @@ public:
 	/* the error comes from the previous promise.
 	 * So we will ignore Then or Catch in this promise.
 	 * Just pass the error to next promise. */
-	inline CSyncPromise(const CPromiseFail &) :
+	inline CSyncPromise(const CPromiseBase::Ignore &) :
 		mParams(nullptr),
 		mErrors(nullptr)
 	{
@@ -687,7 +687,7 @@ public:
 
 		/* Ignore case */
 		} else {
-			return PromisePtr(CPromiseFail());
+			return PromisePtr(CPromiseBase::Ignore());
 		}
 	}
 
@@ -713,7 +713,7 @@ public:
 
 		/* Ignore case */
 		} else {
-			return PromisePtr(CPromiseFail());
+			return PromisePtr(CPromiseBase::Ignore());
 		}
 	}
 
@@ -734,8 +734,8 @@ class CSyncPromise<pack<Tn...>, pack<En...>> :
 	typedef CSyncPromise<ParamType, ErrorType> Parent;
 
 public:
-	inline CSyncPromise(const CPromiseFail &fail) :
-		Parent(fail)
+	inline CSyncPromise(const CPromiseBase::Ignore &) :
+		Parent(CPromiseBase::Ignore())
 	{
 		/* Does nothing */
 	}
@@ -766,8 +766,8 @@ class CSyncPromise<pack<Tn...>, pack<Tn...>> :
 	typedef CSyncPromise<ParamType, ParamType> Parent;
 
 public:
-	inline CSyncPromise(const CPromiseFail &fail) :
-		Parent(fail)
+	inline CSyncPromise(const CPromiseBase::Ignore &) :
+		Parent(CPromiseBase::Ignore())
 	{
 		/* Does nothing */
 	}
@@ -792,8 +792,8 @@ class CSyncPromise<pack<void>, pack<En...>> :
 	typedef CSyncPromise<ParamType, ErrorType> Parent;
 
 public:
-	inline CSyncPromise(const CPromiseFail &fail) :
-		Parent(fail)
+	inline CSyncPromise(const CPromiseBase::Ignore &) :
+		Parent(CPromiseBase::Ignore())
 	{
 		/* Does nothing */
 	}
@@ -825,8 +825,8 @@ class CSyncPromise<pack<Tn...>, pack<void>> :
 	typedef CSyncPromise<ParamType, ErrorType> Parent;
 
 public:
-	inline CSyncPromise(const CPromiseFail &fail) :
-		Parent(fail)
+	inline CSyncPromise(const CPromiseBase::Ignore &) :
+		Parent(CPromiseBase::Ignore())
 	{
 		/* Does nothing */
 	}
@@ -857,8 +857,8 @@ class CSyncPromise<pack<void>, pack<void>> :
 	typedef CSyncPromise<ParamType, ParamType> Parent;
 
 public:
-	inline CSyncPromise(const CPromiseFail &fail) :
-		Parent(fail)
+	inline CSyncPromise(const CPromiseBase::Ignore &) :
+		Parent(CPromiseBase::Ignore())
 	{
 		/* Does nothing */
 	}
