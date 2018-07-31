@@ -28,9 +28,9 @@
  *           ENABLE_IF(is_abstract<_T>)>
  * void Example(void);
  */
-#define TYPE_ALIAS(Alias, T) \
-	typename Alias = T, \
-	ENABLE_IF(std::is_same<Alias, T>)
+#define TYPE_ALIAS(Alias, ...) \
+	typename Alias = __VA_ARGS__, \
+	ENABLE_IF(std::is_same<Alias, __VA_ARGS__>)
 
 #endif /* __TYPE_ALISA_HPP__ */
 
