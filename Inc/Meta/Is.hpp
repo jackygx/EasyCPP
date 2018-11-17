@@ -19,6 +19,7 @@
 
 #include <type_traits>
 
+#include "Pack.hpp"
 #include "EnableIf.hpp"
 #include "HasMember.hpp"
 #include "DeduceFunc.hpp"
@@ -245,6 +246,15 @@ public:
 HAS_MEMBER(IsSameFunc);
 #define IS_SAME_FUNC(Fn1, Fn2) \
 	has_template_member_IsSameFunc<CIsSameFunc, pack<Fn1, Fn2>>
+
+#define IS_SAME_TYPE(t1, t2) \
+	std::is_same<t1, t2>
+
+#define IS_VOID(t) \
+	IS_SAME_TYPE(t, void)
+
+#define IS_VOID_PACK(t) \
+	IS_SAME_TYPE(t, pack<void>)
 
 #endif /* __IS_HPP__ */
 

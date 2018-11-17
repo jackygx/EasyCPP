@@ -17,34 +17,13 @@
 #ifndef __PROMISE_BASE_HPP__
 #define __PROMISE_BASE_HPP__
 
-#include <Meta/Meta.hpp>
 #include <Function/Function.hpp>
 #include <Interface/Interface.hpp>
 #include <SharedPtr/SharedPtr.hpp>
 
+#include "Thenable.hpp"
+#include "Catchable.hpp"
 #include "PromiseDebug.hpp"
-
-
-class CThenable
-{
-public:
-	/* For meta program */
-	inline void ImThenable(void) const;
-};
-
-
-class CCatchable
-{
-public:
-	/* For meta program */
-	inline void ImCatchable(void) const;
-};
-
-static const char *sTypeName[] = {
-	"SUCCEED",
-	"FAIL",
-	"IGNORE",
-};
 
 class CPromiseBase
 {
@@ -54,32 +33,29 @@ public:
 	 * the Catch function does not recover.
 	 * Then the new promise will be ignore.
 	 * Neither Then nor Catch method will be called. */
-	struct Ignore {};
+	struct PromiseIgnore {};
 
-	struct Succeed {};
-	struct Fail{};
-
-	enum Type {
+	enum PromiseType {
 		SUCCEED,
 		FAIL,
 		IGNORE,
 	};
 
 public:
-	CPromiseBase(const Ignore &) :
+	CPromiseBase(const PromiseIgnore &) :
 		mPromiseType(IGNORE)
 	{
 		/* Does nothing */
 	}
 
-	CPromiseBase(enum Type type = IGNORE) :
-		mPromiseType(type)
+	CPromiseBase(enum PromiseType promiseType = IGNORE) :
+		mPromiseType(promiseType)
 	{
 		/* Does nothing */
 	}
 
 	/* For meta program */
-	inline void ImPromisable(void) const;
+	inline void ImPromisable(void) const {}
 
 private:
 	/* bool is treated as int/uint32_t in C++
@@ -101,20 +77,12 @@ public:
 	}
 
 protected:
-	enum Type mPromiseType;
+	enum PromiseType mPromiseType;
 };
 
-HAS_MEMBER(ImThenable);
-#define IS_THENABLE(t) has_pointer_member_ImThenable<t>
-
-HAS_MEMBER(ImCatchable);
-#define IS_CATCHABLE(t) has_pointer_member_ImCatchable<t>
-
+/* We only support the Promisable used in the CSharedPtr */
 HAS_MEMBER(ImPromisable);
 #define IS_PROMISABLE(t) has_pointer_member_ImPromisable<t>
-
-#define TO_PROMISABLE_TYPE(t) \
-	REMOVE_ARRAY(REMOVE_REFERENCE(t))
 
 #endif /* __PROMISE_BASE_HPP__ */
 

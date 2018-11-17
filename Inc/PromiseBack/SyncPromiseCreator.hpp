@@ -14,59 +14,58 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __SYNC_PROMISE_HEADER_HPP__
-#define __SYNC_PROMISE_HEADER_HPP__
+#ifndef __SYNC_PROMISE_CREATOR_HPP__
+#define __SYNC_PROMISE_CREATOR_HPP__
 
 #include "PromiseParams.hpp"
-#include "PromiseBase.hpp"
 
 /* Prorotype of the CCreateSyncPromise */
 template <class... T>
 class CCreateSyncPromise {};
-
-/* Input type is a std::nullptr_t */
-template <>
-struct CCreateSyncPromise<std::nullptr_t>
-{
-	template <class PromisePtr,
-			 class ParamType,
-			 class Fn>
-	static inline PromisePtr Then(ParamType &&params, Fn &&fn)
-	{
-		params->Then(fn);
-		return PromisePtr(CPromiseBase::SUCCEED);
-	}
-
-	template <class PromisePtr,
-			 class ErrorType,
-			 class Fn>
-	static inline PromisePtr Catch(ErrorType &&errors, Fn &&fn)
-	{
-		errors->Catch(fn);
-		return PromisePtr(CPromiseBase::Ignore());
-	}
-};
 
 /* Input type is a void */
 template <>
 struct CCreateSyncPromise<void>
 {
 	template <class PromisePtr,
-			 class ParamType,
+			 class PromiseType,
 			 class Fn>
-	static inline PromisePtr Then(ParamType &&params, Fn &&fn)
+	static inline PromisePtr Then(PromiseType &&t, Fn &&fn)
 	{
-		params->Then(fn);
+		t->Then(fn);
 		return PromisePtr(CPromiseBase::SUCCEED);
 	}
 
 	template <class PromisePtr,
-			 class ErrorType,
+			 class PromiseType,
 			 class Fn>
-	static inline PromisePtr Catch(ErrorType &&errors, Fn &&fn)
+	static inline PromisePtr Catch(PromiseType &&t, Fn &&fn)
 	{
-		errors->Catch(fn);
-		return PromisePtr(CPromiseBase::Ignore());
+		t->Catch(fn);
+		return PromisePtr(CPromiseBase::PromiseIgnore());
+	}
+};
+
+/* Input type is a std::nullptr_t */
+template <>
+struct CCreateSyncPromise<std::nullptr_t>
+{
+	template <class PromisePtr,
+			 class PromiseType,
+			 class Fn>
+	static inline PromisePtr Then(PromiseType &&t, Fn &&fn)
+	{
+		t->Then(fn);
+		return PromisePtr(CPromiseBase::SUCCEED);
+	}
+
+	template <class PromisePtr,
+			 class PromiseType,
+			 class Fn>
+	static inline PromisePtr Catch(PromiseType &&t, Fn &&fn)
+	{
+		t->Catch(fn);
+		return PromisePtr(CPromiseBase::PromiseIgnore());
 	}
 };
 
@@ -75,22 +74,21 @@ template <class T>
 struct CCreateSyncPromise<T>
 {
 	template <class PromisePtr,
-			 class ParamType,
-			 class Fn,
-			 ENABLE_IF(IS_THENABLE(ParamType))>
-	static inline PromisePtr Then(ParamType &&params, Fn &&fn)
+			 class PromiseType,
+			 class Fn>
+	static inline PromisePtr Then(PromiseType &&t, Fn &&fn)
 	{
-		return PromisePtr(params->Then(fn), CPromiseBase::SUCCEED);
+		return PromisePtr(t->Then(fn), CPromiseBase::SUCCEED);
 	}
 
 	template <class PromisePtr,
-			 class ErrorType,
-			 class Fn,
-			 ENABLE_IF(IS_CATCHABLE(ErrorType))>
-	static inline PromisePtr Catch(ErrorType &&errors, Fn &&fn)
+			 class PromiseType,
+			 class Fn>
+	static inline PromisePtr Catch(PromiseType &&t, Fn &&fn)
 	{
-		return errors->Catch(fn);
+		return PromisePtr(t->Then(fn), CPromiseBase::SUCCEED);
 	}
+
 };
 
 template <class PromisePtr,
@@ -106,16 +104,16 @@ inline PromisePtr ThenCreatePromise(ParamType &&params, Fn &&fn)
 }
 
 template <class PromisePtr,
-		 class ErrorType,
+		 class ParamType,
 		 class Fn,
-		 ENABLE_IF(IS_CATCHABLE(ErrorType))>
-inline PromisePtr CatchCreatePromise(ErrorType &&errors, Fn &&fn)
+		 ENABLE_IF(IS_CATCHABLE(ParamType))>
+inline PromisePtr CatchCreatePromise(ParamType &&params, Fn &&fn)
 {
-	using RetType = decltype(errors->Catch(fn));
+	using RetType = decltype(params->Then(fn));
 	using Creator = CCreateSyncPromise<RetType>;
 
-	return Creator::template Catch<PromisePtr>(errors, fn);
+	return Creator::template Catch<PromisePtr>(params, fn);
 }
 
-#endif /* __SYNC_PROMISE_HEADER_HPP__ */
+#endif /* __SYNC_PROMISE_CREATOR_HPP__ */
 

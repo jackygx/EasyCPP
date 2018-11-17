@@ -17,14 +17,7 @@
 #ifndef __PROMISE_PARAMS_HPP__
 #define __PROMISE_PARAMS_HPP__
 
-#include <Function/Function.hpp>
-#include <Interface/Interface.hpp>
-#include <SharedPtr/SharedPtr.hpp>
-#include <Meta/Meta.hpp>
-
 #include "PromiseBase.hpp"
-#include "Thenable.hpp"
-#include "Catchable.hpp"
 
 #define TO_PROMISABLE_TYPE(t) \
 	REMOVE_ARRAY(REMOVE_REFERENCE(t))
@@ -131,7 +124,7 @@ protected:
 	inline decltype(auto) ThenPromise(const Fn &fn, _Tn && ... tn)
 	{
 		return mArg->Then([&](const auto & ... _tn) {
-			return Parent::ThenPromise(fn, tn..., _tn...);
+			return Parent::RunPromise(fn, tn..., _tn...);
 		});
 	}
 
@@ -141,7 +134,7 @@ protected:
 			 ENABLE_IF(!IS_PROMISABLE(K))>
 	inline decltype(auto) ThenPromise(const Fn &fn, _Tn && ... tn)
 	{
-		return Parent::ThenPromise(fn, tn..., mArg);
+		return Parent::RunPromise(fn, tn..., mArg);
 	}
 
 	template <class Fn,
@@ -151,7 +144,7 @@ protected:
 	inline decltype(auto) CatchPromise(const Fn &fn, _Tn && ... tn)
 	{
 		return mArg->Catch([&](const auto & ... _tn) {
-			return Parent::CatchPromise(fn, tn..., _tn...);
+			return Parent::RunPromise(fn, tn..., _tn...);
 		});
 	}
 
@@ -161,7 +154,7 @@ protected:
 			 ENABLE_IF(!IS_PROMISABLE(K))>
 	inline decltype(auto) CatchPromise(const Fn &fn, _Tn && ... tn)
 	{
-		return Parent::CatchPromise(fn, tn..., mArg);
+		return Parent::RunPromise(fn, tn..., mArg);
 	}
 
 private:

@@ -22,9 +22,6 @@
 
 //#define DEBUG_PROMISE
 
-#define PROMISE_ERROR(fmt, ...) \
-	printf(COLOR_RED "[%4d] " fmt "\n" COLOR_NONE, __LINE__, ##__VA_ARGS__);
-
 #ifdef DEBUG_PROMISE
 
 #define PROMISE_DEBUG(fmt, ...) \
