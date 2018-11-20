@@ -30,7 +30,8 @@ class CSyncPromiseBase {};
  **********************************************************/
 template <class... Tn>
 class CSyncPromiseBase<CSharedPtr<CSyncPromiseThenParams<Tn...>>> :
-	public CPromiseBase
+	public CPromiseBase,
+	public CThenable
 {
 	typedef CSharedPtr<CSyncPromiseThenParams<Tn...>> ThenType;
 
@@ -66,7 +67,7 @@ public:
 			 TYPE_ALIAS(RetType, REMOVE_REFERENCE(decltype(std::declval<ThenType>()->Then(std::declval<Fn>()))))>
 	inline RetType Then(const Fn &fn)
 	{
-		PROMISE_DEBUG("CSyncPromiseBaseBase<%s>[%d]: Then",
+		PROMISE_DEBUG("CSyncPromiseBase<%s>[%d]: Then",
 					  TYPE_NAME(ThenType), mPromiseType);
 
 		switch (mPromiseType) {
@@ -114,7 +115,7 @@ public:
 	inline decltype(auto) CheckType(CPromiseBase::Type, const char *func, int line)
 	{
 		PROMISE_ERROR("%s[%d]\nInput type: %s\n Real type: %s",
-					  func, line, TYPE_NAME(ThenType), TYPE_NAME(NewThenType));
+					  func, line, TYPE_NAME(NewThenType), TYPE_NAME(ThenType));
 		throw ES("SyncPromise Check fail");
 		return this;
 	}
@@ -132,7 +133,8 @@ private:
  **********************************************************/
 template <class... Cn>
 class CSyncPromiseBase<CSharedPtr<CSyncPromiseCatchParams<Cn...>>> :
-	public CPromiseBase
+	public CPromiseBase,
+	public CCatchable
 {
 	typedef CSharedPtr<CSyncPromiseCatchParams<Cn...>> CatchType;
 
@@ -168,7 +170,7 @@ public:
 	template <class Fn>
 	inline void Catch(const Fn &fn)
 	{
-		PROMISE_DEBUG("CSyncPromiseBaseBase<%s>[%d]: Catch",
+		PROMISE_DEBUG("CSyncPromiseBase<%s>[%d]: Catch",
 					  TYPE_NAME(CatchType), mPromiseType);
 
 		switch (mPromiseType) {
@@ -210,7 +212,7 @@ public:
 	inline decltype(auto) CheckType(CPromiseBase::Type, const char *func, int line)
 	{
 		PROMISE_ERROR("%s[%d]\nInput type: %s\n Real type: %s",
-					  func, line, TYPE_NAME(CatchType), TYPE_NAME(NewCatchType));
+					  func, line, TYPE_NAME(NewCatchType), TYPE_NAME(CatchType));
 		throw ES("SyncPromise Check fail");
 		return this;
 	}
@@ -231,7 +233,9 @@ protected:
 template <class... Tn, class... Cn>
 class CSyncPromiseBase<CSharedPtr<CSyncPromiseThenParams<Tn...>>,
 					   CSharedPtr<CSyncPromiseCatchParams<Cn...>>> :
-	public CPromiseBase
+	public CPromiseBase,
+	public CThenable,
+	public CCatchable
 {
 	typedef CSharedPtr<CSyncPromiseThenParams<Tn...>> ThenType;
 	typedef CSharedPtr<CSyncPromiseCatchParams<Cn...>> CatchType;
@@ -284,10 +288,10 @@ public:
 	}
 
 private:
-	/* If the Fn does not return, the promise chain has finished. */
-	template <class Fn,
-			 TYPE_ALIAS(FnRetType, FN_RET_TYPE(Fn)),
-			 ENABLE_IF(IS_VOID(FnRetType)),
+	/* If the mThenParams->Then() does not return, the promise chain has finished. */
+	template <class ThenRetType,
+			 class Fn,
+			 ENABLE_IF(IS_VOID(ThenRetType)),
 			 TYPE_ALIAS(RetType, CSharedPtr<CSyncPromiseBase<CatchType>>)>
 	inline RetType ThenSucceed(const Fn &fn)
 	{
@@ -295,27 +299,27 @@ private:
 			return RetType(CPromiseBase::Ignore());
 	}
 
-	/* If the Fn returns a CSyncPromiseThenParams,
-	 * returns CSharedPtr<CSyncPromiseBase<FnRetType, CatchType>> */
-	template <class Fn,
-			 TYPE_ALIAS(FnRetType, FN_RET_TYPE(Fn)),
-			 ENABLE_IF(!IS_VOID(FnRetType)),
-			 ENABLE_IF(IS_SYNC_PROMISE_THEN_PARAM(FnRetType)),
-			 TYPE_ALIAS(RetType, CSharedPtr<CSyncPromiseBase<FnRetType, CatchType>>)>
+	/* If the mThenParams->Then() returns a CSyncPromiseThenParams,
+	 * returns CSharedPtr<CSyncPromiseBase<ThenRetType, CatchType>> */
+	template <class ThenRetType,
+			 class Fn,
+			 ENABLE_IF(!IS_VOID(ThenRetType)),
+			 ENABLE_IF(IS_SYNC_PROMISE_THEN_PARAM(ThenRetType)),
+			 TYPE_ALIAS(RetType, CSharedPtr<CSyncPromiseBase<ThenRetType, CatchType>>)>
 	inline RetType ThenSucceed(const Fn &fn)
 	{
 		return RetType(mThenParams->Then(fn), SUCCEED);
 	}
 
-	/* If the Fn returns a other value.
+	/* If the mThenParams->Then() returns a other value.
 	 * returns CSharedPtr<CSyncPromiseBase<
-	 *     CSharedPtr<CSyncPromiseThenParams<FnRetType>>, CatchType>
+	 *     CSharedPtr<CSyncPromiseThenParams<ThenRetType>>, CatchType>
 	 * >> */
-	template <class Fn,
-			 TYPE_ALIAS(FnRetType, FN_RET_TYPE(Fn)),
-			 ENABLE_IF(!IS_VOID(FnRetType)),
-			 ENABLE_IF(!IS_SYNC_PROMISE_THEN_PARAM(FnRetType)),
-			 TYPE_ALIAS(NewThenType, CSharedPtr<CSyncPromiseThenParams<FnRetType>>),
+	template <class ThenRetType,
+			 class Fn,
+			 ENABLE_IF(!IS_VOID(ThenRetType)),
+			 ENABLE_IF(!IS_SYNC_PROMISE_THEN_PARAM(ThenRetType)),
+			 TYPE_ALIAS(NewThenType, CSharedPtr<CSyncPromiseThenParams<ThenRetType>>),
 			 TYPE_ALIAS(RetType, CSharedPtr<CSyncPromiseBase<NewThenType, CatchType>>)>
 	inline RetType ThenSucceed(const Fn &fn)
 	{
@@ -343,14 +347,16 @@ public:
 	template <class Fn>
 	inline decltype(auto) Then(const Fn &fn)
 	{
-		PROMISE_DEBUG("CSyncPromiseBaseBase<%s, %s>[%d]: Then",
+		PROMISE_DEBUG("CSyncPromiseBase<%s, %s>[%d]: Then",
 					  TYPE_NAME(ThenType), TYPE_NAME(CatchType), mPromiseType);
 
-		using RetType = decltype(ThenSucceed(fn));
+		using ThenRetType = decltype(mThenParams->Then(fn));
+		using RetType = decltype(ThenSucceed<ThenRetType>(fn));
+
 
 		switch (mPromiseType) {
 		case SUCCEED:
-			return ThenSucceed(fn);
+			return ThenSucceed<ThenRetType>(fn);
 
 		case FAIL:
 			return RetType(mCatchParams, FAIL);
@@ -414,7 +420,7 @@ public:
 			 ENABLE_IF(IS_PARAM_PROMISE(_ThenType))>
 	inline decltype(auto) Catch(const Fn &fn)
 	{
-		PROMISE_DEBUG("CSyncPromiseBaseBase<%s, %s>[%d]: Catch",
+		PROMISE_DEBUG("CSyncPromiseBase<%s, %s>[%d]: Catch",
 					  TYPE_NAME(ThenType), TYPE_NAME(CatchType), mPromiseType);
 
 		using RetType = decltype(CatchSucceed());
@@ -462,10 +468,11 @@ public:
 			 ENABLE_IF(!IS_SAME_TYPE(NewThenType, _ThenType))>
 	inline decltype(auto) CheckType(CPromiseBase::Type, const char *func, int line)
 	{
-		PROMISE_ERROR("%s[%d]\nInput type: %s, %s\n Real type: %s, %s",
+		PROMISE_ERROR("%s[%d]\nInput type: %s\n          : %s\n"
+					  " Real type: %s\n          : %s",
 					  func, line,
-					  TYPE_NAME(ThenType), TYPE_NAME(CatchType),
-					  TYPE_NAME(NewThenType), TYPE_NAME(NewCatchType));
+					  TYPE_NAME(NewThenType), TYPE_NAME(NewCatchType),
+					  TYPE_NAME(ThenType), TYPE_NAME(CatchType));
 		throw ES("SyncPromise Check fail");
 		return this;
 	}
@@ -478,10 +485,11 @@ public:
 			 ENABLE_IF(!IS_SAME_TYPE(NewCatchType, _CatchType))>
 	inline decltype(auto) CheckType(CPromiseBase::Type, const char *func, int line)
 	{
-		PROMISE_ERROR("%s[%d]\nInput type: %s, %s\n Real type: %s, %s",
+		PROMISE_ERROR("%s[%d]\nInput type: %s\n          : %s\n"
+					  " Real type: %s\n          : %s",
 					  func, line,
-					  TYPE_NAME(ThenType), TYPE_NAME(CatchType),
-					  TYPE_NAME(NewThenType), TYPE_NAME(NewCatchType));
+					  TYPE_NAME(NewThenType), TYPE_NAME(NewCatchType),
+					  TYPE_NAME(ThenType), TYPE_NAME(CatchType));
 		throw ES("SyncPromise Check fail");
 		return this;
 	}

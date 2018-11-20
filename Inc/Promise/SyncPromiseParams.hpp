@@ -88,7 +88,17 @@ public:
 		PROMISE_DEBUG("CSyncPromiseThenParams<%s>", TYPE_NAME(T));
 	}
 
-	template <class Fn>
+	template <class Fn,
+			 TYPE_ALIAS(_T, T),
+			 ENABLE_IF(IS_THENABLE(_T))>
+	inline decltype(auto) Then(const Fn &fn)
+	{
+		return mArg->Then(fn);
+	}
+
+	template <class Fn,
+			 TYPE_ALIAS(_T, T),
+			 ENABLE_IF(!IS_THENABLE(_T))>
 	inline decltype(auto) Then(const Fn &fn)
 	{
 		return ThenPromise(fn);
